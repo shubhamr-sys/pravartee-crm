@@ -136,7 +136,6 @@ Current Phase: Week 1 – Requirements & Architecture
 
 ## Maintainer
 
-Prepared By:
 
 Shubham Rawat
 
