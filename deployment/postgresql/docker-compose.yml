@@ -1,0 +1,30 @@
+# Local PostgreSQL 16 for Pravartee CRM development
+#
+# From this directory:
+#   export POSTGRES_PASSWORD='your_strong_password'
+#   docker compose up -d
+#
+# Match POSTGRES_PASSWORD with DB_PASSWORD in backend/.env
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pravartee_crm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pravartee_crm
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the shell}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pravartee_crm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d pravartee_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pravartee_crm_pgdata:
