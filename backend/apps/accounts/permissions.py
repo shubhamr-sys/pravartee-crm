@@ -29,7 +29,8 @@ class IsCEOOrSalesHead(permissions.BasePermission):
 class CanAccessLead(permissions.BasePermission):
     """
     List/create: authenticated users (queryset scoping handles list visibility).
-    Object actions: CEO/Sales Head see all; Salesperson only assigned leads.
+    Object actions: CEO sees all; Sales Head sees non-CEO-owned leads;
+    Salesperson only assigned leads.
     """
 
     message = "You do not have permission to access this lead."

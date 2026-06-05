@@ -84,6 +84,7 @@ pravartee-crm/
 │   ├── apps/             # accounts, leads, activities, dashboard, core
 │   ├── manage.py
 │   └── requirements.txt
+├── frontend/             # Next.js auth UI (see frontend/README.md)
 ├── docs/
 ├── deployment/
 ├── tests/
