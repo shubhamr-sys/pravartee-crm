@@ -1,17 +1,15 @@
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.accounts.permissions import IsAuthenticatedCRMUser
 
 from .services import get_dashboard_summary
 
 
 class DashboardSummaryView(APIView):
-    """
-    CEO dashboard summary metrics.
-    Role-based filtering will be added in a later iteration.
-    """
+    """CRM dashboard metrics scoped by user role."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedCRMUser]
 
     def get(self, request):
-        return Response(get_dashboard_summary())
+        return Response(get_dashboard_summary(user=request.user))

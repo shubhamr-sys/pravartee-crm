@@ -51,3 +51,12 @@ class LeadSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return str(obj.assigned_to)
         return None
+
+    def validate_assigned_to(self, value):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated and request.user.is_salesperson:
+            if value is not None and value.pk != request.user.pk:
+                raise serializers.ValidationError(
+                    "Salespersons may only assign leads to themselves."
+                )
+        return value
