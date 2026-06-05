@@ -105,15 +105,16 @@ class CurrentUserView(APIView):
 
 
 class AssignableUserListView(APIView):
-    """List active salespersons for lead assignment (CEO / Sales Head only)."""
+    """List users available for lead assignment (CEO / Sales Head only)."""
 
     permission_classes = [IsAuthenticatedCRMUser, IsCEOOrSalesHead]
 
     def get(self, request):
-        from apps.accounts.choices import UserRole
+        from apps.leads.assignment import assignable_users_for
 
-        users = User.objects.filter(
-            is_active=True,
-            role=UserRole.SALESPERSON,
-        ).order_by("first_name", "last_name", "username")
+        users = assignable_users_for(request.user).order_by(
+            "first_name",
+            "last_name",
+            "username",
+        )
         return Response(UserProfileSerializer(users, many=True).data)

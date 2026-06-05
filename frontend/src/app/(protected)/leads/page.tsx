@@ -41,7 +41,7 @@ export default function LeadsPage() {
   const listTitle = isCEO
     ? "All Leads"
     : isSalesHead
-      ? "Team Leads"
+      ? "Managed Leads"
       : "My Leads";
 
   const listDescription = isSalesperson

@@ -8,6 +8,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.accounts.access import leads_for_user
+from apps.attendance.metrics import get_attendance_metrics
 from apps.leads.models import Lead
 
 User = get_user_model()
@@ -40,10 +41,15 @@ def get_dashboard_summary(user: User | None = None) -> dict:
 
     stale_leads = active_leads.filter(updated_at__lt=stale_cutoff).count()
 
-    return {
+    summary = {
         "pipeline_value": pipeline_value,
         "total_active_leads": active_leads.count(),
         "leads_by_stage": list(leads_by_stage),
         "stale_leads_count": stale_leads,
         "stale_lead_threshold_days": STALE_LEAD_DAYS,
     }
+
+    if user:
+        summary["attendance"] = get_attendance_metrics(user)
+
+    return summary

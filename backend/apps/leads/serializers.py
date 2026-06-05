@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from .assignment import user_can_assign_lead_to
 from .models import Lead, LeadStage, ProductCategory
 
 
@@ -53,10 +54,24 @@ class LeadSerializer(serializers.ModelSerializer):
         return None
 
     def validate_assigned_to(self, value):
+        if value is None:
+            return value
+
         request = self.context.get("request")
-        if request and request.user.is_authenticated and request.user.is_salesperson:
-            if value is not None and value.pk != request.user.pk:
-                raise serializers.ValidationError(
-                    "Salespersons may only assign leads to themselves."
+        if not request or not request.user.is_authenticated:
+            return value
+
+        requester = request.user
+        if not user_can_assign_lead_to(requester, value):
+            if requester.is_salesperson:
+                message = "Salespersons may only assign leads to themselves."
+            elif requester.is_sales_head:
+                message = (
+                    "Sales Heads may only assign leads to themselves or salespersons."
                 )
+            else:
+                message = (
+                    "You may only assign leads to CEOs, Sales Heads, or salespersons."
+                )
+            raise serializers.ValidationError(message)
         return value
