@@ -28,5 +28,5 @@ class LeadAdmin(admin.ModelAdmin):
     )
     list_filter = ("stage", "category", "lead_source", "is_active")
     search_fields = ("customer_name", "company_name", "contact_person", "phone", "email")
-    raw_id_fields = ("assigned_to",)
+    autocomplete_fields = ("assigned_to",)
     date_hierarchy = "created_at"

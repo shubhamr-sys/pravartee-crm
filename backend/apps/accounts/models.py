@@ -70,7 +70,8 @@ class User(TimeStampedModel, AbstractUser):
         ]
 
     def __str__(self):
-        return self.get_full_name() or self.username
+        # Prefer username in admin and foreign key displays.
+        return self.username
 
     def get_full_name(self):
         name = f"{self.first_name} {self.last_name}".strip()

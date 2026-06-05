@@ -38,6 +38,8 @@ class LeadActivity(UUIDModel):
 
     class Meta:
         db_table = "lead_activities"
+        verbose_name = "lead activity"
+        verbose_name_plural = "lead activities"
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["lead"]),
@@ -45,4 +47,6 @@ class LeadActivity(UUIDModel):
         ]
 
     def __str__(self):
-        return f"{self.activity_type} — {self.lead_id}"
+        lead_display = str(self.lead) if self.lead_id else "Unknown lead"
+        user_display = self.user.username if self.user_id else "System"
+        return f"{lead_display} — {user_display} — {self.get_activity_type_display()}"
