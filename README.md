@@ -79,13 +79,16 @@ The platform aims to replace manual and verbal sales tracking with a structured,
 ```text
 pravartee-crm/
 │
-├── backend/
+├── backend/              # Django 5.x API (see backend/DEVELOPMENT.md)
+│   ├── config/           # Project settings & URLs
+│   ├── apps/             # accounts, leads, activities, dashboard, core
+│   ├── manage.py
+│   └── requirements.txt
 ├── docs/
 ├── deployment/
 ├── tests/
-├── .github/
 ├── README.md
-└── requirements.txt
+└── .gitignore
 ```
 
 ---
@@ -122,15 +125,11 @@ pravartee-crm/
 
 ## Project Status
 
-Current Phase: Week 1 – Requirements & Architecture
+Current Phase: Week 2 – Foundation Setup (in progress)
 
-### Week 1 Objectives
+### Backend setup
 
-* Requirements gathering
-* Database design
-* Architecture planning
-* Repository setup
-* Infrastructure planning
+See [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md) for local development instructions.
 
 ---
 
