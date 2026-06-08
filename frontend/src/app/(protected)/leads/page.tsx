@@ -1,31 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import LeadFilters from "@/components/leads/LeadFilters";
+import LeadSummaryCards from "@/components/leads/LeadSummaryCards";
 import LeadTable from "@/components/leads/LeadTable";
+import { SummaryCardsSkeleton, TableSkeleton } from "@/components/leads/LoadingSkeleton";
 import {
   EmptyState,
   ErrorState,
-  LoadingState,
 } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
 import {
+  fetchAssignableUsers,
   fetchCategories,
+  fetchLeadSummary,
   fetchLeads,
   fetchStages,
 } from "@/lib/leadsService";
-import type { Lead, LeadStage, ProductCategory } from "@/types/lead";
+import type {
+  AssignableUser,
+  Lead,
+  LeadListSummary,
+  LeadStage,
+  ProductCategory,
+} from "@/types/lead";
 
 const PAGE_SIZE = 25;
 
 export default function LeadsPage() {
-  const { isCEO, isSalesHead, isSalesperson } = useAuth();
+  const { isCEO, isSalesHead } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [summary, setSummary] = useState<LeadListSummary | null>(null);
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
 
@@ -33,20 +44,37 @@ export default function LeadsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stage, setStage] = useState("");
   const [category, setCategory] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [followupFrom, setFollowupFrom] = useState("");
+  const [followupTo, setFollowupTo] = useState("");
   const [ordering, setOrdering] = useState("-updated_at");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const listTitle = isCEO
     ? "All Leads"
     : isSalesHead
-      ? "Team Leads"
+      ? "Managed Leads"
       : "My Leads";
 
-  const listDescription = isSalesperson
-    ? "Leads assigned to you."
-    : "Leads visible to your role across the organization.";
+  const listDescription = isCEO || isSalesHead
+    ? "Leads visible to your role across the organization."
+    : "Leads assigned to you.";
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Boolean(
+        debouncedSearch ||
+          stage ||
+          category ||
+          assignedTo ||
+          followupFrom ||
+          followupTo,
+      ),
+    [debouncedSearch, stage, category, assignedTo, followupFrom, followupTo],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -55,7 +83,19 @@ export default function LeadsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, stage, category, ordering]);
+  }, [debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
+
+  const loadSummary = useCallback(async () => {
+    setIsSummaryLoading(true);
+    try {
+      const data = await fetchLeadSummary();
+      setSummary(data);
+    } catch {
+      setSummary(null);
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  }, []);
 
   const loadReferenceData = useCallback(async () => {
     const [stageData, categoryData] = await Promise.all([
@@ -64,7 +104,12 @@ export default function LeadsPage() {
     ]);
     setStages(stageData);
     setCategories(categoryData);
-  }, []);
+
+    if (isCEO || isSalesHead) {
+      const users = await fetchAssignableUsers();
+      setAssignableUsers(users);
+    }
+  }, [isCEO, isSalesHead]);
 
   const loadLeads = useCallback(async () => {
     setIsLoading(true);
@@ -75,6 +120,9 @@ export default function LeadsPage() {
         search: debouncedSearch || undefined,
         stage: stage || undefined,
         category: category || undefined,
+        assigned_to: assignedTo || undefined,
+        next_followup_date__gte: followupFrom || undefined,
+        next_followup_date__lte: followupTo || undefined,
         ordering,
       });
       setLeads(data.results);
@@ -84,13 +132,14 @@ export default function LeadsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, debouncedSearch, stage, category, ordering]);
+  }, [page, debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
 
   useEffect(() => {
     loadReferenceData().catch(() => {
       setError("Unable to load lead filters.");
     });
-  }, [loadReferenceData]);
+    loadSummary();
+  }, [loadReferenceData, loadSummary]);
 
   useEffect(() => {
     loadLeads();
@@ -113,32 +162,54 @@ export default function LeadsPage() {
         </Link>
       </div>
 
+      {isSummaryLoading ? (
+        <SummaryCardsSkeleton />
+      ) : (
+        <LeadSummaryCards summary={summary} />
+      )}
+
       <LeadFilters
         search={search}
         stage={stage}
         category={category}
+        assignedTo={assignedTo}
+        followupFrom={followupFrom}
+        followupTo={followupTo}
         ordering={ordering}
         stages={stages}
         categories={categories}
+        assignableUsers={assignableUsers}
+        showAssigneeFilter={isCEO || isSalesHead}
         onSearchChange={setSearch}
         onStageChange={setStage}
         onCategoryChange={setCategory}
+        onAssignedToChange={setAssignedTo}
+        onFollowupFromChange={setFollowupFrom}
+        onFollowupToChange={setFollowupTo}
         onOrderingChange={setOrdering}
       />
 
-      {isLoading && <LoadingState message="Loading leads..." />}
+      {isLoading && <TableSkeleton />}
 
       {!isLoading && error && (
         <ErrorState message={error} onRetry={loadLeads} />
       )}
 
       {!isLoading && !error && leads.length === 0 && (
-        <EmptyState message="No leads found for the current filters." />
+        <EmptyState
+          message={
+            hasActiveFilters
+              ? "No leads match your filters."
+              : "No leads found."
+          }
+          actionLabel={hasActiveFilters ? undefined : "Create Lead"}
+          actionHref={hasActiveFilters ? undefined : "/leads/new"}
+        />
       )}
 
       {!isLoading && !error && leads.length > 0 && (
         <>
-          <LeadTable leads={leads} />
+          <LeadTable leads={leads} canEdit />
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
               Showing {leads.length} of {count} leads

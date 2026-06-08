@@ -99,6 +99,8 @@ export default function EditLeadPage() {
 
     const payload: Partial<LeadFormData> = {
       stage: values.stage,
+      category: values.category,
+      estimated_value: values.estimated_value || "0",
       next_followup_date: values.next_followup_date || undefined,
       notes: values.notes,
     };
@@ -109,7 +111,7 @@ export default function EditLeadPage() {
 
     try {
       await updateLead(lead.id, payload);
-      router.push(`/leads/${lead.id}`);
+      router.push(`/leads/${lead.id}?saved=1`);
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data;
@@ -150,7 +152,7 @@ export default function EditLeadPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Edit Lead</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Update stage, follow-up, notes
+          Update stage, category, value, follow-up, notes
           {canAssign ? ", and assignment" : ""} for {lead.customer_name}.
         </p>
       </div>
@@ -165,6 +167,7 @@ export default function EditLeadPage() {
           canAssign={canAssign}
           isSubmitting={isSubmitting}
           error={submitError}
+          cancelHref={`/leads/${lead.id}`}
           onSubmit={handleSubmit}
         />
       </div>

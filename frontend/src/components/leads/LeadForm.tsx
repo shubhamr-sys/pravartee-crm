@@ -1,8 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import type { AssignableUser, LeadFormData, LeadStage, ProductCategory } from "@/types/lead";
+import {
+  LEAD_SOURCE_OPTIONS,
+  type AssignableUser,
+  type LeadFormData,
+  type LeadStage,
+  type ProductCategory,
+} from "@/types/lead";
 
 interface LeadFormProps {
   mode: "create" | "edit";
@@ -13,11 +20,14 @@ interface LeadFormProps {
   canAssign?: boolean;
   isSubmitting?: boolean;
   error?: string | null;
+  cancelHref?: string;
   onSubmit: (values: LeadFormData) => Promise<void>;
 }
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+
+const PHONE_PATTERN = /^[\d\s+\-().]{7,20}$/;
 
 export default function LeadForm({
   mode,
@@ -28,6 +38,7 @@ export default function LeadForm({
   canAssign = false,
   isSubmitting = false,
   error,
+  cancelHref,
   onSubmit,
 }: LeadFormProps) {
   const [values, setValues] = useState<LeadFormData>(initialValues);
@@ -42,11 +53,24 @@ export default function LeadForm({
     if (mode === "create" && !values.customer_name.trim()) {
       errors.customer_name = "Customer name is required.";
     }
-    if (mode === "create" && !values.category) {
+    if (mode === "create" && !values.company_name.trim()) {
+      errors.company_name = "Company name is required.";
+    }
+    if (!values.category) {
       errors.category = "Category is required.";
     }
     if (!values.stage) {
       errors.stage = "Stage is required.";
+    }
+    if (values.phone && !PHONE_PATTERN.test(values.phone)) {
+      errors.phone = "Enter a valid phone number.";
+    }
+    if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+      errors.email = "Enter a valid email address.";
+    }
+    const dealValue = Number(values.estimated_value);
+    if (values.estimated_value && (Number.isNaN(dealValue) || dealValue < 0)) {
+      errors.estimated_value = "Enter a valid deal value (zero or greater).";
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -80,12 +104,15 @@ export default function LeadForm({
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Company Name</label>
+            <label className="mb-1 block text-sm font-medium">Company Name *</label>
             <input
               className={inputClass}
               value={values.company_name}
               onChange={(e) => updateField("company_name", e.target.value)}
             />
+            {fieldErrors.company_name && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.company_name}</p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Contact Person</label>
@@ -102,6 +129,9 @@ export default function LeadForm({
               value={values.phone}
               onChange={(e) => updateField("phone", e.target.value)}
             />
+            {fieldErrors.phone && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Email</label>
@@ -111,6 +141,9 @@ export default function LeadForm({
               value={values.email}
               onChange={(e) => updateField("email", e.target.value)}
             />
+            {fieldErrors.email && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Estimated Value</label>
@@ -122,33 +155,46 @@ export default function LeadForm({
               value={values.estimated_value}
               onChange={(e) => updateField("estimated_value", e.target.value)}
             />
+            {fieldErrors.estimated_value && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
+            )}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Lead Source</label>
+            <select
+              className={inputClass}
+              value={values.lead_source || "OTHER"}
+              onChange={(e) => updateField("lead_source", e.target.value)}
+            >
+              {LEAD_SOURCE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
           </div>
         </section>
       )}
 
       <section className="grid gap-4 md:grid-cols-2">
-        {mode === "create" && (
-          <>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Category *</label>
-              <select
-                className={inputClass}
-                value={values.category}
-                onChange={(e) => updateField("category", e.target.value)}
-              >
-                <option value="">Select category</option>
-                {categories.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.category && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.category}</p>
-              )}
-            </div>
-          </>
-        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium">Category *</label>
+          <select
+            className={inputClass}
+            value={values.category}
+            onChange={(e) => updateField("category", e.target.value)}
+          >
+            <option value="">Select category</option>
+            {categories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.category && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.category}</p>
+          )}
+        </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium">Stage *</label>
@@ -168,6 +214,23 @@ export default function LeadForm({
             <p className="mt-1 text-sm text-red-600">{fieldErrors.stage}</p>
           )}
         </div>
+
+        {mode === "edit" && (
+          <div>
+            <label className="mb-1 block text-sm font-medium">Estimated Value</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className={inputClass}
+              value={values.estimated_value}
+              onChange={(e) => updateField("estimated_value", e.target.value)}
+            />
+            {fieldErrors.estimated_value && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium">Next Follow-up</label>
@@ -208,7 +271,7 @@ export default function LeadForm({
         />
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <button
           type="submit"
           disabled={isSubmitting}
@@ -220,6 +283,14 @@ export default function LeadForm({
               ? "Create Lead"
               : "Save Changes"}
         </button>
+        {cancelHref && (
+          <Link
+            href={cancelHref}
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Cancel
+          </Link>
+        )}
       </div>
     </form>
   );

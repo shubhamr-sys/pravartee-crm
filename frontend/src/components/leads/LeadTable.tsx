@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 
+import FollowupBadge from "@/components/leads/FollowupBadge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { Lead } from "@/types/lead";
 
 interface LeadTableProps {
   leads: Lead[];
+  canEdit?: boolean;
 }
 
-export default function LeadTable({ leads }: LeadTableProps) {
+export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -19,9 +21,11 @@ export default function LeadTable({ leads }: LeadTableProps) {
               <th className="px-4 py-3 text-left font-medium text-slate-600">Customer</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Company</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Stage</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Category</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Assigned To</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Value</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Follow-up</th>
+              <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -44,13 +48,42 @@ export default function LeadTable({ leads }: LeadTableProps) {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-700">
+                  {lead.category_name || "—"}
+                </td>
+                <td className="px-4 py-3 text-slate-700">
                   {lead.assigned_to_name || "Unassigned"}
                 </td>
                 <td className="px-4 py-3 font-medium text-slate-900">
                   {formatCurrency(lead.estimated_value)}
                 </td>
-                <td className="px-4 py-3 text-slate-700">
-                  {formatDate(lead.next_followup_date)}
+                <td className="px-4 py-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-slate-700">
+                      {formatDate(lead.next_followup_date)}
+                    </span>
+                    <FollowupBadge
+                      followupDate={lead.next_followup_date}
+                      status={lead.followup_status}
+                    />
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-2">
+                    <Link
+                      href={`/leads/${lead.id}`}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      View
+                    </Link>
+                    {canEdit && (
+                      <Link
+                        href={`/leads/${lead.id}/edit`}
+                        className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
+                      >
+                        Edit
+                      </Link>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

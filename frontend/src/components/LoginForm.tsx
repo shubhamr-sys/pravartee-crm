@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { isAxiosError } from "axios";
 
 import { useAuth } from "@/context/AuthContext";
+import { useMounted } from "@/hooks/useMounted";
+import { resolveApiBaseUrl } from "@/lib/api";
 
 interface FormErrors {
   email?: string;
@@ -31,13 +33,15 @@ function validate(email: string, password: string): FormErrors {
 
 export default function LoginForm() {
   const { login } = useAuth();
+  const mounted = useMounted();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!mounted || isSubmitting) return;
     const validationErrors = validate(email, password);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -55,7 +59,14 @@ export default function LoginForm() {
         const detail = error.response?.data?.detail;
 
         if (status === 401) {
-          setErrors({ general: "Invalid email or password." });
+          setErrors({
+            general:
+              "Invalid email or password. Check your credentials and try again (Safari autofill may use an outdated password).",
+          });
+        } else if (!error.response) {
+          setErrors({
+            general: `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port 8000.`,
+          });
         } else if (typeof detail === "string") {
           setErrors({ general: detail });
         } else {
@@ -70,7 +81,13 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5"
+      noValidate
+      // Prevent native GET submit if React has not hydrated yet.
+      action="#"
+    >
       {errors.general && (
         <div
           role="alert"
@@ -117,11 +134,12 @@ export default function LoginForm() {
       </div>
 
       <button
-        type="submit"
-        disabled={isSubmitting}
+        type="button"
+        onClick={() => void handleSubmit()}
+        disabled={!mounted || isSubmitting}
         className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Signing in..." : "Sign in"}
+        {!mounted ? "Loading..." : isSubmitting ? "Signing in..." : "Sign in"}
       </button>
     </form>
   );
