@@ -20,10 +20,22 @@ import {
   fetchMyAttendance,
   getTodayRecord,
 } from "@/lib/attendanceService";
-import type { AttendanceMetrics, AttendanceRecord } from "@/types/attendance";
+import type {
+  AttendanceMetrics,
+  AttendanceRecord,
+  AttendanceStatusView,
+} from "@/types/attendance";
 import type { AssignableUser } from "@/types/lead";
 
 const PAGE_SIZE = 25;
+
+function getLocalToday(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function AttendancePage() {
   const { isCEO, isSalesHead } = useAuth();
@@ -39,6 +51,8 @@ export default function AttendancePage() {
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState("");
   const [status, setStatus] = useState("");
+  const [activeStatusView, setActiveStatusView] =
+    useState<AttendanceStatusView | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +129,20 @@ export default function AttendancePage() {
     await Promise.all([loadMyAttendance(), loadList(), loadSummary()]);
   }
 
+  function handleStatusViewChange(view: AttendanceStatusView | null) {
+    setActiveStatusView(view);
+    if (!view) {
+      setDate("");
+      setStatus("");
+      return;
+    }
+
+    setDate(getLocalToday());
+    setRole("");
+    setUserId("");
+    setStatus(view === "present" ? "punched_in" : "absent");
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -126,6 +154,9 @@ export default function AttendancePage() {
         metrics={summary}
         isCEO={isCEO}
         isSalesHead={isSalesHead}
+        interactive={isCEO || isSalesHead}
+        activeView={activeStatusView}
+        onViewChange={handleStatusViewChange}
       />
 
       <TodayStatus record={todayRecord ?? null} />

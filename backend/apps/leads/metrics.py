@@ -9,6 +9,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from apps.accounts.access import leads_for_user
+from apps.leads.stages import active_pipeline_leads
 
 User = get_user_model()
 DUE_SOON_DAYS = 3
@@ -20,7 +21,9 @@ def get_lead_list_metrics(user: User) -> dict:
     due_soon_cutoff = today + timedelta(days=DUE_SOON_DAYS)
 
     leads = leads_for_user(user).filter(is_active=True)
-    pipeline_value = leads.aggregate(total=Sum("estimated_value"))["total"] or 0
+    pipeline_value = (
+        active_pipeline_leads(leads).aggregate(total=Sum("estimated_value"))["total"] or 0
+    )
 
     with_followup = leads.filter(next_followup_date__isnull=False)
     overdue = with_followup.filter(next_followup_date__lt=today).count()

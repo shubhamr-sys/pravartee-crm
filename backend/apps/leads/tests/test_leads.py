@@ -22,9 +22,9 @@ class LeadManagementTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.create(name="Solar")
-        cls.stage_new = LeadStage.objects.create(name="New", sequence=1)
-        cls.stage_qualified = LeadStage.objects.create(name="Qualified", sequence=2)
-        cls.stage_won = LeadStage.objects.create(name="Won", sequence=6)
+        cls.stage_new = LeadStage.objects.get(name="New")
+        cls.stage_pre_bid = LeadStage.objects.get(name="Pre Bid")
+        cls.stage_won = LeadStage.objects.get(name="Won")
 
         cls.ceo = User.objects.create_user(
             username="ceo_leads",
@@ -85,7 +85,7 @@ class LeadManagementTestCase(TestCase):
         self._auth(self.salesperson)
         response = self.client.patch(
             f"/api/v1/leads/{lead.id}/",
-            {"stage": str(self.stage_qualified.id)},
+            {"stage": str(self.stage_pre_bid.id)},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -96,13 +96,13 @@ class LeadManagementTestCase(TestCase):
         ).first()
         self.assertIsNotNone(activity)
         self.assertEqual(activity.old_value, "New")
-        self.assertEqual(activity.new_value, "Qualified")
+        self.assertEqual(activity.new_value, "Pre Bid")
 
     def test_won_stage_logs_closed_won_activity(self):
         lead = Lead.objects.create(
             customer_name="Won Test",
             category=self.category,
-            stage=self.stage_qualified,
+            stage=self.stage_pre_bid,
             assigned_to=self.salesperson,
         )
         self._auth(self.salesperson)
@@ -276,13 +276,13 @@ class LeadManagementTestCase(TestCase):
             user=self.salesperson,
             activity_type=ActivityType.STAGE_CHANGED,
             old_value="New",
-            new_value="Qualified",
+            new_value="Pre Bid",
         )
         self._auth(self.salesperson)
         response = self.client.get(f"/api/v1/activities/lead/{lead.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         item = response.data["results"][0]
-        self.assertEqual(item["change_summary"], "New → Qualified")
+        self.assertEqual(item["change_summary"], "New → Pre Bid")
         self.assertEqual(item["user_username"], self.salesperson.username)
 
     def test_invalid_phone_rejected(self):
@@ -431,3 +431,4 @@ class LeadManagementTestCase(TestCase):
         self.assertIn("upcoming_followups", response.data)
         self.assertIn("recent_activities", response.data)
         self.assertIn("recent_lead_updates", response.data)
+        self.assertIn("products", response.data)

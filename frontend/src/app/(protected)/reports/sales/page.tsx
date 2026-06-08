@@ -34,6 +34,54 @@ function currentMonth() {
   return new Date().getMonth() + 1;
 }
 
+function ProductTable({
+  headers,
+  rows,
+  emptyMessage,
+}: {
+  headers: string[];
+  rows: (string | number)[][];
+  emptyMessage: string;
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-full text-left text-sm">
+        <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+          <tr>
+            {headers.map((header) => (
+              <th key={header} className="px-4 py-3 font-medium">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td
+                colSpan={headers.length}
+                className="px-4 py-6 text-center text-slate-500"
+              >
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, index) => (
+              <tr key={`${row[0]}-${index}`} className="border-b border-slate-100">
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-4 py-3">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function SalesMBRPage() {
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -202,9 +250,13 @@ export default function SalesMBRPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { label: "Total Leads", value: summary.total_leads },
-                { label: "Qualified Leads", value: summary.qualified_leads },
+                {
+                  label: "Active Pipeline Leads",
+                  value: summary.active_pipeline_leads,
+                },
                 { label: "Won Deals", value: summary.won_deals },
                 { label: "Lost Deals", value: summary.lost_deals },
+                { label: "Win Rate", value: `${summary.win_rate}%` },
                 {
                   label: "Pipeline Value",
                   value: formatCurrency(summary.pipeline_value),
@@ -300,6 +352,89 @@ export default function SalesMBRPage() {
             </div>
           </section>
 
+          {report.products && (
+            <>
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Quantity by Product
+                </h2>
+                <ProductTable
+                  headers={["Product", "Category", "Brand", "Quantity", "Revenue"]}
+                  rows={report.products.quantity_by_product.map((row) => [
+                    row.product,
+                    row.category || "—",
+                    row.brand || "—",
+                    row.quantity,
+                    formatCurrency(row.revenue),
+                  ])}
+                  emptyMessage="No product quantity data."
+                />
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Revenue by Product
+                </h2>
+                <ProductTable
+                  headers={["Product", "Category", "Brand", "Revenue"]}
+                  rows={report.products.revenue_by_product.map((row) => [
+                    row.product,
+                    row.category || "—",
+                    row.brand || "—",
+                    formatCurrency(row.revenue),
+                  ])}
+                  emptyMessage="No product revenue data."
+                />
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Revenue by Category
+                </h2>
+                <ProductTable
+                  headers={["Category", "Quantity", "Revenue"]}
+                  rows={report.products.revenue_by_category.map((row) => [
+                    row.category,
+                    row.quantity,
+                    formatCurrency(row.revenue),
+                  ])}
+                  emptyMessage="No category revenue data."
+                />
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Revenue by Brand
+                </h2>
+                <ProductTable
+                  headers={["Brand", "Quantity", "Revenue"]}
+                  rows={report.products.revenue_by_brand.map((row) => [
+                    row.brand,
+                    row.quantity,
+                    formatCurrency(row.revenue),
+                  ])}
+                  emptyMessage="No brand revenue data."
+                />
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Top Selling Products
+                </h2>
+                <ProductTable
+                  headers={["Product", "Brand", "Quantity", "Revenue"]}
+                  rows={report.products.top_selling_products.map((row) => [
+                    row.product,
+                    row.brand || "—",
+                    row.quantity,
+                    formatCurrency(row.revenue),
+                  ])}
+                  emptyMessage="No won deals with products yet."
+                />
+              </section>
+            </>
+          )}
+
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">
               Salesperson Performance
@@ -313,7 +448,7 @@ export default function SalesMBRPage() {
                     <th className="px-4 py-3 font-medium">Won Deals</th>
                     <th className="px-4 py-3 font-medium">Lost Deals</th>
                     <th className="px-4 py-3 font-medium">Pipeline Value</th>
-                    <th className="px-4 py-3 font-medium">Conversion Rate</th>
+                    <th className="px-4 py-3 font-medium">Win Rate</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -336,7 +471,9 @@ export default function SalesMBRPage() {
                         <td className="px-4 py-3">
                           {formatCurrency(row.pipeline_value)}
                         </td>
-                        <td className="px-4 py-3">{row.conversion_rate}%</td>
+                        <td className="px-4 py-3">
+                          {row.win_rate ?? row.conversion_rate}%
+                        </td>
                       </tr>
                     ))
                   )}

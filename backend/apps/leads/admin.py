@@ -1,6 +1,24 @@
 from django.contrib import admin
 
-from .models import Lead, LeadStage, ProductCategory
+from .models import Lead, LeadItem, LeadStage, ProductCategory
+
+
+class LeadItemInline(admin.TabularInline):
+    model = LeadItem
+    extra = 0
+    fields = (
+        "category",
+        "product",
+        "brand",
+        "model",
+        "quantity",
+        "uom",
+        "unit_price",
+        "total_price",
+        "specification",
+        "remarks",
+    )
+    readonly_fields = ("total_price",)
 
 
 @admin.register(ProductCategory)
@@ -30,3 +48,19 @@ class LeadAdmin(admin.ModelAdmin):
     search_fields = ("customer_name", "company_name", "contact_person", "phone", "email")
     autocomplete_fields = ("assigned_to",)
     date_hierarchy = "created_at"
+    inlines = [LeadItemInline]
+
+
+@admin.register(LeadItem)
+class LeadItemAdmin(admin.ModelAdmin):
+    list_display = (
+        "product",
+        "lead",
+        "category",
+        "quantity",
+        "unit_price",
+        "total_price",
+    )
+    list_filter = ("category",)
+    search_fields = ("product", "brand", "model", "lead__customer_name")
+    readonly_fields = ("total_price",)

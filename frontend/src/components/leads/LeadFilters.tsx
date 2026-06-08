@@ -1,5 +1,6 @@
 "use client";
 
+import CategorySelectField from "@/components/leads/CategorySelectField";
 import type { AssignableUser, LeadStage, ProductCategory } from "@/types/lead";
 
 interface LeadFiltersProps {
@@ -91,24 +92,16 @@ export default function LeadFilters({
         </select>
       </div>
 
-      <div>
-        <label htmlFor="lead-category" className="mb-1 block text-xs font-medium text-slate-500">
-          Category
-        </label>
-        <select
-          id="lead-category"
-          value={category}
-          onChange={(e) => onCategoryChange(e.target.value)}
-          className={selectClass}
-        >
-          <option value="">All categories</option>
-          {categories.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <CategorySelectField
+        id="lead-category"
+        label="Category"
+        value={category}
+        onChange={onCategoryChange}
+        categories={categories}
+        emptyOption={{ value: "", label: "All categories" }}
+        labelClassName="text-xs font-medium text-slate-500"
+        selectClassName={selectClass}
+      />
 
       {showAssigneeFilter && (
         <div>

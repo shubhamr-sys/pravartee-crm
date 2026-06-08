@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
 import {
   LEAD_SOURCE_OPTIONS,
   type AssignableUser,
@@ -56,9 +57,6 @@ export default function LeadForm({
     if (mode === "create" && !values.company_name.trim()) {
       errors.company_name = "Company name is required.";
     }
-    if (!values.category) {
-      errors.category = "Category is required.";
-    }
     if (!values.stage) {
       errors.stage = "Stage is required.";
     }
@@ -68,10 +66,35 @@ export default function LeadForm({
     if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
       errors.email = "Enter a valid email address.";
     }
-    const dealValue = Number(values.estimated_value);
-    if (values.estimated_value && (Number.isNaN(dealValue) || dealValue < 0)) {
-      errors.estimated_value = "Enter a valid deal value (zero or greater).";
+
+    const hasValidItems = values.items.some(
+      (item) => item.category && item.product.trim() && Number(item.quantity) >= 1,
+    );
+    if (!hasValidItems) {
+      errors.items = "Add at least one product with category, name, and quantity.";
     }
+
+    for (const item of values.items) {
+      if (!item.category && item.product.trim()) {
+        errors.items = "Each product must have a category.";
+        break;
+      }
+      if (item.category && !item.product.trim()) {
+        errors.items = "Each product row must have a product name.";
+        break;
+      }
+      const qty = Number(item.quantity);
+      const price = Number(item.unit_price);
+      if (item.product.trim() && (Number.isNaN(qty) || qty < 1)) {
+        errors.items = "Quantity must be at least 1 for each product.";
+        break;
+      }
+      if (item.product.trim() && (Number.isNaN(price) || price < 0)) {
+        errors.items = "Unit price must be zero or greater.";
+        break;
+      }
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -146,20 +169,6 @@ export default function LeadForm({
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Estimated Value</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={values.estimated_value}
-              onChange={(e) => updateField("estimated_value", e.target.value)}
-            />
-            {fieldErrors.estimated_value && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
-            )}
-          </div>
-          <div>
             <label className="mb-1 block text-sm font-medium">Lead Source</label>
             <select
               className={inputClass}
@@ -176,26 +185,14 @@ export default function LeadForm({
         </section>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Category *</label>
-          <select
-            className={inputClass}
-            value={values.category}
-            onChange={(e) => updateField("category", e.target.value)}
-          >
-            <option value="">Select category</option>
-            {categories.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.category && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.category}</p>
-          )}
-        </div>
+      <LeadItemsEditor
+        items={values.items}
+        categories={categories}
+        onChange={(items) => updateField("items", items)}
+        errors={fieldErrors}
+      />
 
+      <section className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium">Stage *</label>
           <select
@@ -214,23 +211,6 @@ export default function LeadForm({
             <p className="mt-1 text-sm text-red-600">{fieldErrors.stage}</p>
           )}
         </div>
-
-        {mode === "edit" && (
-          <div>
-            <label className="mb-1 block text-sm font-medium">Estimated Value</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={values.estimated_value}
-              onChange={(e) => updateField("estimated_value", e.target.value)}
-            />
-            {fieldErrors.estimated_value && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
-            )}
-          </div>
-        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium">Next Follow-up</label>

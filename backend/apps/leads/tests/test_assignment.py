@@ -18,7 +18,7 @@ class LeadAssignmentTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.create(name="Assignment Category")
-        cls.stage = LeadStage.objects.create(name="New", sequence=1)
+        cls.stage = LeadStage.objects.get(name="New")
 
         cls.ceo = User.objects.create_user(
             username="ceo_assign",

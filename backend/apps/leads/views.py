@@ -8,13 +8,16 @@ from rest_framework.views import APIView
 from apps.accounts.access import leads_for_user
 from apps.accounts.permissions import CanAccessLead, IsAuthenticatedCRMUser
 
+from .categories import PRODUCT_CATEGORIES
 from .metrics import get_lead_list_metrics
 from .models import Lead, LeadStage, ProductCategory
 from .serializers import LeadSerializer, LeadStageSerializer, ProductCategorySerializer
 
 
 class ProductCategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ProductCategory.objects.all()
+    queryset = ProductCategory.objects.filter(
+        name__in=PRODUCT_CATEGORIES,
+    ).order_by("name")
     serializer_class = ProductCategorySerializer
     permission_classes = [IsAuthenticatedCRMUser]
 
@@ -61,7 +64,10 @@ class LeadListCreateView(generics.ListCreateAPIView):
     ordering = ["-updated_at"]
 
     def get_queryset(self):
-        return leads_for_user(self.request.user)
+        return leads_for_user(self.request.user).prefetch_related(
+            "items",
+            "items__category",
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -78,7 +84,11 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         # Unfiltered lookup so unauthorized access returns 403, not 404.
-        return Lead.objects.select_related("assigned_to", "category", "stage")
+        return Lead.objects.select_related(
+            "assigned_to",
+            "category",
+            "stage",
+        ).prefetch_related("items", "items__category")
 
     def perform_destroy(self, instance):
         if self.request.user.is_salesperson:

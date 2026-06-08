@@ -47,12 +47,23 @@ export interface PunchOutResponse {
   working_hours: string | number;
 }
 
+export interface AttendanceEmployeeSummary {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  punch_in_time: string | null;
+  punch_out_time: string | null;
+}
+
 export interface CEOAttendanceMetrics {
   present_today: number;
   absent_today: number;
   total_employees: number;
   average_working_hours: string | number;
   average_working_hours_display?: string;
+  present_employees?: AttendanceEmployeeSummary[];
+  absent_employees?: AttendanceEmployeeSummary[];
 }
 
 export interface SalesHeadAttendanceMetrics {
@@ -61,7 +72,11 @@ export interface SalesHeadAttendanceMetrics {
   team_members?: number;
   average_team_working_hours: string | number;
   average_team_working_hours_display?: string;
+  present_employees?: AttendanceEmployeeSummary[];
+  absent_employees?: AttendanceEmployeeSummary[];
 }
+
+export type AttendanceStatusView = "present" | "absent";
 
 export interface SalespersonAttendanceMetrics {
   today_status: string;

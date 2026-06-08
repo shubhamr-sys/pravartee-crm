@@ -1,10 +1,14 @@
 """
-Lead, pipeline stage, and product category models.
+Lead, pipeline stage, product category, and lead item models.
 """
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel
+
+from .uom import LeadItemUOM
 
 
 class ProductCategory(TimeStampedModel):
@@ -70,6 +74,8 @@ class Lead(TimeStampedModel):
         ProductCategory,
         on_delete=models.PROTECT,
         related_name="leads",
+        null=True,
+        blank=True,
     )
     stage = models.ForeignKey(
         LeadStage,
@@ -91,3 +97,56 @@ class Lead(TimeStampedModel):
 
     def __str__(self):
         return f"{self.customer_name} - {self.company_name or 'N/A'}"
+
+
+class LeadItem(TimeStampedModel):
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    category = models.ForeignKey(
+        ProductCategory,
+        on_delete=models.PROTECT,
+        related_name="lead_items",
+    )
+    product = models.CharField(max_length=255)
+    brand = models.CharField(max_length=255, blank=True)
+    model = models.CharField(max_length=255, blank=True)
+    quantity = models.PositiveIntegerField(default=1)
+    uom = models.CharField(
+        max_length=20,
+        choices=LeadItemUOM.choices,
+        default=LeadItemUOM.NOS,
+    )
+    unit_price = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_price = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    specification = models.TextField(blank=True)
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "lead_items"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["lead"]),
+            models.Index(fields=["category"]),
+            models.Index(fields=["product"]),
+            models.Index(fields=["brand"]),
+        ]
+
+    def __str__(self):
+        return f"{self.product} × {self.quantity}"
+
+    def save(self, *args, **kwargs):
+        self.total_price = (
+            Decimal(self.quantity) * Decimal(self.unit_price)
+        ).quantize(Decimal("0.01"))
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        lead = self.lead
+        super().delete(*args, **kwargs)
+        from apps.leads.lead_item_services import sync_lead_from_items
+
+        if lead.items.exists():
+            sync_lead_from_items(lead)

@@ -7,9 +7,11 @@ export interface SalesMBRFilters {
 
 export interface SalesPerformanceSummary {
   total_leads: number;
-  qualified_leads: number;
+  active_pipeline_leads: number;
+  qualified_leads?: number;
   won_deals: number;
   lost_deals: number;
+  win_rate: number;
   pipeline_value: string;
   revenue: string;
   average_deal_size: string;
@@ -36,11 +38,42 @@ export interface SalespersonPerformanceRow {
   lost_deals: number;
   pipeline_value: string;
   conversion_rate: number;
+  win_rate?: number;
 }
 
 export interface ReportSalespersonOption {
   id: string;
   name: string;
+}
+
+export interface ProductReportRow {
+  product: string;
+  category?: string;
+  brand?: string;
+  quantity: number;
+  revenue: string;
+}
+
+export interface CategoryReportRow {
+  category: string;
+  quantity: number;
+  revenue: string;
+}
+
+export interface BrandReportRow {
+  brand: string;
+  quantity: number;
+  revenue: string;
+}
+
+export interface ProductReportMetrics {
+  quantity_by_product: ProductReportRow[];
+  revenue_by_product: ProductReportRow[];
+  revenue_by_category: CategoryReportRow[];
+  revenue_by_brand: BrandReportRow[];
+  top_selling_products: ProductReportRow[];
+  pipeline_product_quantity: number;
+  won_product_revenue: string;
 }
 
 export interface SalesMBRReport {
@@ -50,4 +83,5 @@ export interface SalesMBRReport {
   top_customers: TopCustomerRow[];
   salesperson_performance: SalespersonPerformanceRow[];
   salespeople: ReportSalespersonOption[];
+  products?: ProductReportMetrics;
 }

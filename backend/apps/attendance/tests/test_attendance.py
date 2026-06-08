@@ -284,6 +284,20 @@ class AttendanceAPITestCase(TestCase):
         response = self.client.get("/api/v1/attendance/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("present_today", response.data)
+        self.assertIn("present_employees", response.data)
+        self.assertIn("absent_employees", response.data)
+        self.assertEqual(len(response.data["present_employees"]), 1)
+        self.assertGreaterEqual(len(response.data["absent_employees"]), 1)
+
+    def test_attendance_status_filter_punched_in(self):
+        self._create_attendance(self.salesperson)
+        self._auth(self.ceo)
+        response = self.client.get(
+            "/api/v1/attendance/",
+            {"status": "punched_in"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
 
     def test_visible_attendance_users_for_sales_head_excludes_ceo(self):
         self._auth(self.sales_head)

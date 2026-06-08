@@ -4,13 +4,12 @@ Automatic lead activity logging.
 from django.contrib.auth import get_user_model
 
 from apps.leads.models import Lead
+from apps.leads.stages import LOST_STAGE as LOST_STAGE_NAME
+from apps.leads.stages import WON_STAGE as WON_STAGE_NAME
 
 from .models import ActivityType, LeadActivity
 
 User = get_user_model()
-
-WON_STAGE_NAME = "Won"
-LOST_STAGE_NAME = "Lost"
 
 
 def log_lead_activity(

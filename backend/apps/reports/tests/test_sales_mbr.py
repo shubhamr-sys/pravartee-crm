@@ -22,10 +22,10 @@ class SalesMBRReportTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.create(name="Server")
-        cls.stage_new = LeadStage.objects.create(name="New", sequence=1)
-        cls.stage_qualified = LeadStage.objects.create(name="Qualified", sequence=3)
-        cls.stage_won = LeadStage.objects.create(name="Won", sequence=6)
-        cls.stage_lost = LeadStage.objects.create(name="Lost", sequence=7)
+        cls.stage_new = LeadStage.objects.get(name="New")
+        cls.stage_pre_bid = LeadStage.objects.get(name="Pre Bid")
+        cls.stage_won = LeadStage.objects.get(name="Won")
+        cls.stage_lost = LeadStage.objects.get(name="Lost")
 
         cls.ceo = User.objects.create_user(
             username="ceo_mbr",
@@ -54,7 +54,7 @@ class SalesMBRReportTestCase(TestCase):
             company_name="Acme Industries",
             estimated_value=Decimal("100000.00"),
             category=cls.category,
-            stage=cls.stage_qualified,
+            stage=cls.stage_pre_bid,
             assigned_to=cls.salesperson,
         )
         Lead.objects.filter(pk=cls.lead_open.pk).update(created_at=now)
@@ -80,7 +80,7 @@ class SalesMBRReportTestCase(TestCase):
             company_name="Executive Co",
             estimated_value=Decimal("200000.00"),
             category=cls.category,
-            stage=cls.stage_qualified,
+            stage=cls.stage_pre_bid,
             assigned_to=cls.ceo,
         )
         Lead.objects.filter(pk=cls.lead_ceo.pk).update(created_at=now)
@@ -101,6 +101,8 @@ class SalesMBRReportTestCase(TestCase):
         response = self.client.get("/api/v1/reports/sales/", self.params)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("performance_summary", response.data)
+        self.assertIn("active_pipeline_leads", response.data["performance_summary"])
+        self.assertIn("win_rate", response.data["performance_summary"])
         self.assertIn("pipeline_by_stage", response.data)
         self.assertGreaterEqual(
             response.data["performance_summary"]["total_leads"],
