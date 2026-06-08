@@ -7,12 +7,15 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from apps.accounts.access import leads_for_user
+from apps.accounts.access import activities_for_user, leads_for_user
+from apps.activities.serializers import LeadActivitySerializer
 from apps.attendance.metrics import get_attendance_metrics
 from apps.leads.models import Lead
+from apps.leads.serializers import LeadSerializer
 
 User = get_user_model()
 STALE_LEAD_DAYS = 3
+UPCOMING_FOLLOWUP_DAYS = 7
 
 
 def get_dashboard_summary(user: User | None = None) -> dict:
@@ -24,7 +27,9 @@ def get_dashboard_summary(user: User | None = None) -> dict:
     Salesperson sees metrics for their assigned leads only.
     """
     now = timezone.now()
+    today = timezone.localdate()
     stale_cutoff = now - timedelta(days=STALE_LEAD_DAYS)
+    followup_cutoff = today + timedelta(days=UPCOMING_FOLLOWUP_DAYS)
 
     if user:
         active_leads = leads_for_user(user).filter(is_active=True)
@@ -41,15 +46,45 @@ def get_dashboard_summary(user: User | None = None) -> dict:
 
     stale_leads = active_leads.filter(updated_at__lt=stale_cutoff).count()
 
+    upcoming_followups = (
+        active_leads.filter(
+            next_followup_date__isnull=False,
+            next_followup_date__gte=today,
+            next_followup_date__lte=followup_cutoff,
+        )
+        .select_related("assigned_to", "stage")
+        .order_by("next_followup_date")[:10]
+    )
+
+    recent_lead_updates = (
+        active_leads.select_related("assigned_to", "stage", "category")
+        .order_by("-updated_at")[:10]
+    )
+
     summary = {
         "pipeline_value": pipeline_value,
         "total_active_leads": active_leads.count(),
         "leads_by_stage": list(leads_by_stage),
         "stale_leads_count": stale_leads,
         "stale_lead_threshold_days": STALE_LEAD_DAYS,
+        "upcoming_followups": LeadSerializer(
+            upcoming_followups,
+            many=True,
+            context={"request": None},
+        ).data,
+        "recent_lead_updates": LeadSerializer(
+            recent_lead_updates,
+            many=True,
+            context={"request": None},
+        ).data,
     }
 
     if user:
+        recent_activities = activities_for_user(user).order_by("-created_at")[:10]
+        summary["recent_activities"] = LeadActivitySerializer(
+            recent_activities,
+            many=True,
+        ).data
         summary["attendance"] = get_attendance_metrics(user)
 
     return summary

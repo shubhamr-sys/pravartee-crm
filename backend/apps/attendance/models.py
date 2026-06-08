@@ -3,7 +3,7 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel
 
-from .choices import AttendanceActivityType, CorrectionStatus, CorrectionType
+from .choices import AttendanceActivityType
 
 
 class Attendance(TimeStampedModel):
@@ -63,53 +63,6 @@ class Attendance(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user} — {self.attendance_date}"
-
-
-class AttendanceCorrectionRequest(TimeStampedModel):
-    attendance = models.ForeignKey(
-        Attendance,
-        on_delete=models.CASCADE,
-        related_name="correction_requests",
-    )
-    requested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="attendance_correction_requests",
-    )
-    correction_type = models.CharField(
-        max_length=50,
-        choices=CorrectionType.choices,
-        db_index=True,
-    )
-    requested_punch_in_time = models.DateTimeField(null=True, blank=True)
-    requested_punch_out_time = models.DateTimeField(null=True, blank=True)
-    reason = models.TextField()
-    status = models.CharField(
-        max_length=20,
-        choices=CorrectionStatus.choices,
-        default=CorrectionStatus.PENDING,
-        db_index=True,
-    )
-    approved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="approved_attendance_corrections",
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
-    rejection_reason = models.TextField(blank=True)
-
-    class Meta:
-        db_table = "attendance_correction_requests"
-        ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["status", "created_at"]),
-            models.Index(fields=["requested_by", "status"]),
-        ]
-
-    def __str__(self):
-        return f"{self.correction_type} — {self.status}"
 
 
 class AttendanceActivity(UUIDModel):

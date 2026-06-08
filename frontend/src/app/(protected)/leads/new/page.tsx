@@ -90,7 +90,7 @@ export default function NewLeadPage() {
       const payload: LeadFormData = {
         ...values,
         estimated_value: values.estimated_value || "0",
-        lead_source: "OTHER",
+        lead_source: values.lead_source || "OTHER",
       };
       if (!canAssign) {
         delete payload.assigned_to;
@@ -102,7 +102,7 @@ export default function NewLeadPage() {
       }
 
       const lead = await createLead(payload);
-      router.push(`/leads/${lead.id}`);
+      router.push(`/leads/${lead.id}?created=1`);
     } catch (error) {
       if (isAxiosError(error)) {
         const data = error.response?.data;

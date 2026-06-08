@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function LoadingState({ message = "Loading..." }: { message?: string }) {
   return (
     <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-12">
@@ -29,10 +31,26 @@ export function ErrorState({
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({
+  message,
+  actionLabel,
+  actionHref,
+}: {
+  message: string;
+  actionLabel?: string;
+  actionHref?: string;
+}) {
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
       <p className="text-sm text-slate-500">{message}</p>
+      {actionLabel && actionHref && (
+        <Link
+          href={actionHref}
+          className="mt-4 inline-flex rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+        >
+          {actionLabel}
+        </Link>
+      )}
     </div>
   );
 }

@@ -2,10 +2,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.access import leads_for_user
 from apps.accounts.permissions import CanAccessLead, IsAuthenticatedCRMUser
 
+from .metrics import get_lead_list_metrics
 from .models import Lead, LeadStage, ProductCategory
 from .serializers import LeadSerializer, LeadStageSerializer, ProductCategorySerializer
 
@@ -22,11 +25,24 @@ class LeadStageViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticatedCRMUser]
 
 
+class LeadSummaryView(APIView):
+    permission_classes = [IsAuthenticatedCRMUser]
+
+    def get(self, request):
+        return Response(get_lead_list_metrics(request.user))
+
+
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
     permission_classes = [IsAuthenticatedCRMUser, CanAccessLead]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["stage", "category", "is_active"]
+    filterset_fields = {
+        "stage": ["exact"],
+        "category": ["exact"],
+        "assigned_to": ["exact"],
+        "is_active": ["exact"],
+        "next_followup_date": ["exact", "gte", "lte"],
+    }
     search_fields = [
         "customer_name",
         "company_name",

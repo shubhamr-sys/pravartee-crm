@@ -96,6 +96,56 @@ python manage.py runserver
 - Admin: http://127.0.0.1:8000/admin/
 - API root: http://127.0.0.1:8000/api/v1/
 
+### Access from another device on your network (phone, tablet, another PC)
+
+1. **Find your computer’s LAN IP** (macOS):
+
+   ```bash
+   ipconfig getifaddr en0
+   ```
+
+   Example: `192.168.1.100`
+
+2. **Backend** — add that IP to `ALLOWED_HOSTS` in `.env`:
+
+   ```env
+   ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.100
+   ```
+
+   Start Django bound to all interfaces:
+
+   ```bash
+   python manage.py runserver 0.0.0.0:8000
+   ```
+
+3. **Frontend** — copy and edit env (use the same LAN IP):
+
+   ```bash
+   cd ../frontend
+   cp .env.local.example .env.local
+   ```
+
+   Set in `.env.local`:
+
+   ```env
+   NEXT_PUBLIC_API_URL=http://192.168.1.100:8000
+   ```
+
+   Start Next.js on the network:
+
+   ```bash
+   npm run dev:network
+   ```
+
+4. **On the other device** (same Wi‑Fi), open:
+
+   - App: `http://192.168.1.100:3000`
+   - API (optional): `http://192.168.1.100:8000/api/v1/`
+
+5. **If it doesn’t connect**, allow incoming connections on ports **3000** and **8000** in your OS firewall.
+
+> Development only. For production, use HTTPS, strict `ALLOWED_HOSTS`, and do not use `CORS_ALLOW_ALL_ORIGINS`.
+
 ### API endpoints (initial)
 
 | Method | Endpoint | Description |

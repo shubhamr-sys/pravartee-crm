@@ -1,20 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import AttendanceSummaryCards from "@/components/attendance/AttendanceSummaryCards";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { formatTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { getRoleLabel } from "@/lib/navigation";
-import type { AttendanceMetrics } from "@/types/attendance";
-
-interface DashboardSummary {
-  pipeline_value: string | number;
-  total_active_leads: number;
-  stale_leads_count: number;
-  attendance?: AttendanceMetrics;
-}
+import type { DashboardSummary } from "@/types/dashboard";
 
 export default function DashboardPage() {
   const { user, isCEO, isSalesHead } = useAuth();
@@ -62,7 +56,7 @@ export default function DashboardPage() {
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-sm text-slate-500">Pipeline Value</p>
               <p className="mt-2 text-2xl font-semibold">
-                ₹{Number(summary.pipeline_value).toLocaleString("en-IN")}
+                {formatCurrency(summary.pipeline_value)}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -79,10 +73,111 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {attendance && "pending_corrections_label" in attendance && attendance.pending_corrections_label && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {attendance.pending_corrections_label}
-            </div>
+          {summary.leads_by_stage.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-slate-900">Leads by Stage</h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {summary.leads_by_stage.map((item) => (
+                  <div
+                    key={item.stage__name}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <p className="text-sm text-slate-500">{item.stage__name}</p>
+                    <p className="mt-1 text-xl font-semibold">{item.count}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Upcoming Follow-ups
+              </h2>
+              {summary.upcoming_followups.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">No follow-ups in the next 7 days.</p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {summary.upcoming_followups.map((lead) => (
+                    <li key={lead.id}>
+                      <Link
+                        href={`/leads/${lead.id}`}
+                        className="block rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 hover:bg-slate-100"
+                      >
+                        <p className="text-sm font-medium text-slate-900">
+                          {lead.customer_name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatDate(lead.next_followup_date)} · {lead.stage_name}
+                          {lead.assigned_to_name ? ` · ${lead.assigned_to_name}` : ""}
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Recent Lead Updates
+              </h2>
+              {summary.recent_lead_updates.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">No recent updates.</p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {summary.recent_lead_updates.map((lead) => (
+                    <li key={lead.id}>
+                      <Link
+                        href={`/leads/${lead.id}`}
+                        className="block rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 hover:bg-slate-100"
+                      >
+                        <p className="text-sm font-medium text-slate-900">
+                          {lead.customer_name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {lead.stage_name} · Updated {formatDateTime(lead.updated_at)}
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+
+          {summary.recent_activities && summary.recent_activities.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Recent Lead Activities
+              </h2>
+              <ul className="mt-4 space-y-3">
+                {summary.recent_activities.map((activity) => (
+                  <li
+                    key={activity.id}
+                    className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
+                  >
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-medium text-slate-900">
+                        <Link
+                          href={`/leads/${activity.lead}`}
+                          className="text-teal-700 hover:text-teal-800"
+                        >
+                          {activity.lead_customer_name || "Lead"}
+                        </Link>
+                        {" · "}
+                        {activity.activity_label}
+                      </p>
+                      <time className="text-xs text-slate-500">
+                        {formatDateTime(activity.created_at)}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{activity.description}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
           {attendance && (

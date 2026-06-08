@@ -6,6 +6,7 @@ from .views import (
     LeadDetailView,
     LeadListCreateView,
     LeadStageViewSet,
+    LeadSummaryView,
     ProductCategoryViewSet,
 )
 
@@ -17,5 +18,6 @@ router.register("stages", LeadStageViewSet, basename="stage")
 
 urlpatterns = [
     path("", LeadListCreateView.as_view(), name="lead-list"),
+    path("summary/", LeadSummaryView.as_view(), name="lead-summary"),
     path("<uuid:pk>/", LeadDetailView.as_view(), name="lead-detail"),
 ] + router.urls

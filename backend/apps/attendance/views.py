@@ -1,7 +1,6 @@
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,25 +8,11 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsAuthenticatedCRMUser, IsCEOOrSalesHead
 from apps.accounts.serializers import UserProfileSerializer
 
-from .access import (
-    attendance_for_user,
-    corrections_for_user,
-    user_can_access_attendance,
-    user_can_access_correction,
-    visible_users_for_attendance,
-)
-from .correction_services import approve_correction_request, reject_correction_request
+from .access import attendance_for_user, visible_users_for_attendance
 from .metrics import get_attendance_metrics
-from .models import Attendance, AttendanceActivity, AttendanceCorrectionRequest
-from .permissions import CanAccessAttendance, CanAccessCorrection
-from .serializers import (
-    AttendanceActivitySerializer,
-    AttendanceCorrectionCreateSerializer,
-    AttendanceCorrectionRequestSerializer,
-    AttendanceSerializer,
-    GPSInputSerializer,
-    RejectCorrectionSerializer,
-)
+from .models import Attendance
+from .permissions import CanAccessAttendance
+from .serializers import AttendanceSerializer, GPSInputSerializer
 from .services import punch_in, punch_out
 
 
@@ -137,102 +122,3 @@ class AttendanceListView(generics.ListAPIView):
         elif status_filter == "absent":
             queryset = queryset.filter(punch_in_time__isnull=True)
         return queryset
-
-
-class AttendanceActivityListView(generics.ListAPIView):
-    serializer_class = AttendanceActivitySerializer
-    permission_classes = [IsAuthenticatedCRMUser, CanAccessAttendance]
-
-    def get_queryset(self):
-        attendance_id = self.kwargs["attendance_id"]
-        try:
-            attendance = Attendance.objects.select_related("user").get(pk=attendance_id)
-        except Attendance.DoesNotExist:
-            return AttendanceActivity.objects.none()
-        if not user_can_access_attendance(self.request.user, attendance):
-            raise PermissionDenied("You do not have permission to view this timeline.")
-        return AttendanceActivity.objects.filter(attendance_id=attendance_id).select_related(
-            "user",
-        )
-
-
-class CorrectionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticatedCRMUser, CanAccessCorrection]
-
-    def get_serializer_class(self):
-        if self.request.method == "POST":
-            return AttendanceCorrectionCreateSerializer
-        return AttendanceCorrectionRequestSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        correction = serializer.save()
-        output = AttendanceCorrectionRequestSerializer(
-            correction,
-            context={"request": request},
-        )
-        return Response(output.data, status=status.HTTP_201_CREATED)
-
-    def get_queryset(self):
-        queryset = corrections_for_user(self.request.user)
-        status_filter = self.request.query_params.get("status")
-        if status_filter:
-            queryset = queryset.filter(status=status_filter.upper())
-        return queryset
-
-
-class CorrectionDetailView(generics.RetrieveAPIView):
-    serializer_class = AttendanceCorrectionRequestSerializer
-    permission_classes = [IsAuthenticatedCRMUser, CanAccessCorrection]
-
-    def get_queryset(self):
-        return corrections_for_user(self.request.user)
-
-
-class CorrectionApproveView(APIView):
-    permission_classes = [IsAuthenticatedCRMUser, CanAccessCorrection]
-
-    def post(self, request, pk):
-        try:
-            correction = corrections_for_user(request.user).get(pk=pk)
-        except AttendanceCorrectionRequest.DoesNotExist as exc:
-            raise PermissionDenied("Correction request not found.") from exc
-
-        if not user_can_access_correction(request.user, correction):
-            raise PermissionDenied("You do not have permission to access this request.")
-
-        correction = approve_correction_request(correction, request.user)
-        return Response(
-            AttendanceCorrectionRequestSerializer(
-                correction,
-                context={"request": request},
-            ).data,
-        )
-
-
-class CorrectionRejectView(APIView):
-    permission_classes = [IsAuthenticatedCRMUser, CanAccessCorrection]
-
-    def post(self, request, pk):
-        try:
-            correction = corrections_for_user(request.user).get(pk=pk)
-        except AttendanceCorrectionRequest.DoesNotExist as exc:
-            raise PermissionDenied("Correction request not found.") from exc
-
-        if not user_can_access_correction(request.user, correction):
-            raise PermissionDenied("You do not have permission to access this request.")
-
-        serializer = RejectCorrectionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        correction = reject_correction_request(
-            correction,
-            request.user,
-            serializer.validated_data.get("rejection_reason", ""),
-        )
-        return Response(
-            AttendanceCorrectionRequestSerializer(
-                correction,
-                context={"request": request},
-            ).data,
-        )

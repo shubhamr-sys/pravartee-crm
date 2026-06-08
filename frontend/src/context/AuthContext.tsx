@@ -27,6 +27,7 @@ interface AuthContextValue {
   user: User | null;
   role: UserRole | null;
   isLoading: boolean;
+  sessionReady: boolean;
   isAuthenticated: boolean;
   isCEO: boolean;
   isSalesHead: boolean;
@@ -41,7 +42,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   const refreshUser = useCallback(async () => {
     const currentUser = await fetchCurrentUser();
@@ -50,38 +52,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     async function bootstrap() {
       if (!isAuthenticated()) {
-        setIsLoading(false);
+        if (active) setSessionReady(true);
         return;
       }
 
+      if (active) setIsLoading(true);
+
       const cached = getStoredUser();
-      if (cached) {
+      if (cached && active) {
         setUser(cached);
       }
 
       try {
-        await refreshUser();
+        await Promise.race([
+          refreshUser(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("Session check timed out")), 8_000);
+          }),
+        ]);
       } catch {
         clearAuth();
-        setUser(null);
+        if (active) setUser(null);
       } finally {
-        setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+          setSessionReady(true);
+        }
       }
     }
 
     bootstrap();
+
+    const failsafe = setTimeout(() => {
+      if (active) {
+        setIsLoading(false);
+        setSessionReady(true);
+      }
+    }, 10_000);
+
+    return () => {
+      active = false;
+      clearTimeout(failsafe);
+    };
   }, [refreshUser]);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const response = await loginWithEmail(email, password);
-      setUser(response.user);
-      router.replace("/dashboard");
-    },
-    [router],
-  );
+  const login = useCallback(async (email: string, password: string) => {
+    const response = await loginWithEmail(email, password);
+    setUser(response.user);
+    setSessionReady(true);
+    window.location.replace("/dashboard");
+  }, []);
 
   const logout = useCallback(async () => {
     await logoutUser();
@@ -94,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       role: user?.role ?? null,
       isLoading,
+      sessionReady,
       isAuthenticated: Boolean(user),
       isCEO: user?.role === "CEO",
       isSalesHead: user?.role === "SALES_HEAD",
@@ -102,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       refreshUser,
     }),
-    [user, isLoading, login, logout, refreshUser],
+    [user, isLoading, sessionReady, login, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

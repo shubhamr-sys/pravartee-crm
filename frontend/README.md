@@ -15,6 +15,24 @@ Open http://localhost:3000
 
 Ensure the Django API is running at `http://127.0.0.1:8000`.
 
+### Network access (same Wi‑Fi)
+
+See [backend/DEVELOPMENT.md](../backend/DEVELOPMENT.md#access-from-another-device-on-your-network-phone-tablet-another-pc).
+
+Quick version:
+
+```bash
+# Terminal 1 — backend (from backend/, after adding LAN IP to ALLOWED_HOSTS in .env)
+python manage.py runserver 0.0.0.0:8000
+
+# Terminal 2 — frontend (set NEXT_PUBLIC_API_URL in .env.local to http://YOUR_LAN_IP:8000)
+npm run dev:network
+```
+
+Open `http://YOUR_LAN_IP:3000` on another device.
+
+`next.config.ts` includes `allowedDevOrigins` for LAN IPs — **restart** `npm run dev:network` after changing it. Without this, login via IP does a page reload (`/login?`) instead of calling the API.
+
 ## Auth features
 
 - Email/password login (`POST /api/v1/auth/login/`)
@@ -34,4 +52,4 @@ Ensure the Django API is running at `http://127.0.0.1:8000`.
 | `/leads` | Protected |
 | `/activities` | Protected |
 | `/users` | Protected (CEO nav) |
-| `/reports` | Protected (Sales Head nav) |
+| `/reports/sales` | Protected (CEO & Sales Head) |
