@@ -1,11 +1,17 @@
 """
 Production settings for Pravartee CRM.
 """
-from decouple import config
+from decouple import Csv, config
 
 from .base import *  # noqa: F403
 
 DEBUG = False
+
+CSRF_TRUSTED_ORIGINS = config(
+    "CSRF_TRUSTED_ORIGINS",
+    default="",
+    cast=Csv(),
+)
 
 # Security
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)

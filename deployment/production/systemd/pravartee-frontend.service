@@ -1,0 +1,18 @@
+[Unit]
+Description=Pravartee CRM Next.js frontend
+After=network.target pravartee-backend.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/pravartee-crm/frontend
+EnvironmentFile=/opt/pravartee-crm/frontend/.env.production
+Environment=NODE_ENV=production
+Environment=PORT=3034
+ExecStart=/opt/pravartee-crm/frontend/node_modules/.bin/next start -H 127.0.0.1 -p 3034
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=Pravartee CRM Django API (Gunicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/pravartee-crm/backend
+EnvironmentFile=/opt/pravartee-crm/backend/.env
+ExecStart=/opt/pravartee-crm/backend/.venv/bin/gunicorn config.wsgi:application \
+    -c /opt/pravartee-crm/deployment/production/gunicorn.conf.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -146,7 +146,14 @@ Change ports in root `.env` — backend, frontend, and CORS stay in sync automat
 
 See [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md) for manual setup.
 
+### Production (Ubuntu + HTTPS)
+
+For production with **Let’s Encrypt SSL** (fixes “Not Secure” and enables GPS on phones):
+
+See [deployment/production/README.md](deployment/production/README.md)
+
 ---
+
 
 ## Maintainer
 
