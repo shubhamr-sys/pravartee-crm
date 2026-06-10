@@ -128,9 +128,23 @@ pravartee-crm/
 
 Current Phase: Week 2 – Foundation Setup (in progress)
 
-### Backend setup
+### Quick start (plug-and-play)
 
-See [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md) for local development instructions.
+```bash
+cp .env.example .env    # edit BACKEND_PORT, FRONTEND_PORT, POSTGRES_PASSWORD
+chmod +x start.sh stop.sh
+./start.sh
+```
+
+Open the URL printed by the script (default `http://<your-ip>:3034`).  
+Change ports in root `.env` — backend, frontend, and CORS stay in sync automatically.
+
+```bash
+./stop.sh          # stop backend
+./stop.sh --all    # stop backend + PostgreSQL Docker
+```
+
+See [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md) for manual setup.
 
 ---
 

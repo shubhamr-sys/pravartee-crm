@@ -5,7 +5,7 @@ import { isAxiosError } from "axios";
 
 import { useAuth } from "@/context/AuthContext";
 import { useMounted } from "@/hooks/useMounted";
-import { resolveApiBaseUrl } from "@/lib/api";
+import { getBackendPort, resolveApiBaseUrl } from "@/lib/api";
 
 interface FormErrors {
   email?: string;
@@ -65,7 +65,7 @@ export default function LoginForm() {
           });
         } else if (!error.response) {
           setErrors({
-            general: `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port 8000.`,
+            general: `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port ${getBackendPort()}.`,
           });
         } else if (typeof detail === "string") {
           setErrors({ general: detail });

@@ -7,6 +7,8 @@ import { isAxiosError } from "axios";
 
 import FollowupBadge from "@/components/leads/FollowupBadge";
 import LeadActivityTimeline from "@/components/leads/LeadActivityTimeline";
+import LeadFollowUpsSection from "@/components/leads/LeadFollowUpsSection";
+import LeadStageHistoryTimeline from "@/components/leads/LeadStageHistoryTimeline";
 import LeadBreadcrumb from "@/components/leads/LeadBreadcrumb";
 import LeadNotFound from "@/components/leads/LeadNotFound";
 import { DetailSkeleton } from "@/components/leads/LoadingSkeleton";
@@ -244,6 +246,14 @@ export default function LeadDetailPage() {
           </div>
         </section>
       )}
+
+      <LeadFollowUpsSection
+        leadId={lead.id}
+        defaultAssignedTo={lead.assigned_to ?? ""}
+        onUpdated={loadLead}
+      />
+
+      <LeadStageHistoryTimeline leadId={lead.id} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Notes</h2>

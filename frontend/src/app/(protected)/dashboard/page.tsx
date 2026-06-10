@@ -79,6 +79,70 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {summary.followups && (
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-slate-900">Follow-ups</h2>
+              <div
+                className={`grid gap-4 ${
+                  isCEO ? "sm:grid-cols-3" : "sm:grid-cols-2"
+                }`}
+              >
+                {isCEO ? (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-sm text-slate-500">Today&apos;s Follow-ups</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {summary.followups.today_followups}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                      <p className="text-sm text-red-800">Overdue Follow-ups</p>
+                      <p className="mt-2 text-2xl font-semibold text-red-900">
+                        {summary.followups.overdue_followups}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-sm text-slate-500">Upcoming Follow-ups</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {summary.followups.upcoming_followups}
+                      </p>
+                    </div>
+                  </>
+                ) : isSalesHead ? (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-sm text-slate-500">Team Follow-ups Today</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {summary.followups.today_followups}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                      <p className="text-sm text-red-800">Overdue Follow-ups</p>
+                      <p className="mt-2 text-2xl font-semibold text-red-900">
+                        {summary.followups.overdue_followups}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-sm text-slate-500">My Follow-ups Today</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {summary.followups.today_followups}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                      <p className="text-sm text-red-800">Overdue Follow-ups</p>
+                      <p className="mt-2 text-2xl font-semibold text-red-900">
+                        {summary.followups.overdue_followups}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
           {summary.products && (
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

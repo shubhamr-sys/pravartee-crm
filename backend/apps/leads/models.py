@@ -209,3 +209,92 @@ class LeadItem(TimeStampedModel):
 
     def __str__(self):
         return f"{self.product.name} × {self.quantity}"
+
+
+class FollowUpType(models.TextChoices):
+    CALL = "CALL", "Call"
+    MEETING = "MEETING", "Meeting"
+    SITE_VISIT = "SITE_VISIT", "Site Visit"
+    EMAIL = "EMAIL", "Email"
+    TENDER_DISCUSSION = "TENDER_DISCUSSION", "Tender Discussion"
+
+
+class FollowUpStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    COMPLETED = "COMPLETED", "Completed"
+    CANCELLED = "CANCELLED", "Cancelled"
+
+
+class FollowUp(TimeStampedModel):
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="followups",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="assigned_followups",
+    )
+    followup_date = models.DateField()
+    followup_type = models.CharField(
+        max_length=30,
+        choices=FollowUpType.choices,
+        default=FollowUpType.CALL,
+    )
+    remarks = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=FollowUpStatus.choices,
+        default=FollowUpStatus.PENDING,
+        db_index=True,
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_followups",
+    )
+
+    class Meta:
+        db_table = "lead_followups"
+        ordering = ["followup_date", "-created_at"]
+        indexes = [
+            models.Index(fields=["lead"]),
+            models.Index(fields=["assigned_to"]),
+            models.Index(fields=["followup_date"]),
+            models.Index(fields=["status", "followup_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.lead.customer_name} — {self.get_followup_type_display()} ({self.followup_date})"
+
+
+class StageHistory(TimeStampedModel):
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="stage_history",
+    )
+    old_stage = models.CharField(max_length=100, blank=True)
+    new_stage = models.CharField(max_length=100)
+    remarks = models.TextField(blank=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="stage_changes",
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "lead_stage_history"
+        ordering = ["-changed_at"]
+        indexes = [
+            models.Index(fields=["lead"]),
+            models.Index(fields=["changed_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.lead.customer_name}: {self.old_stage} → {self.new_stage}"
