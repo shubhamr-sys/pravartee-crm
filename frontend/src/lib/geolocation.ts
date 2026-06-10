@@ -17,6 +17,15 @@ export function getCurrentPosition(): Promise<GeoPosition> {
       return;
     }
 
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      reject(
+        new GeolocationError(
+          "GPS requires a secure connection. Open the app via https:// (use ./start-https.sh on the server, not http:// with an IP address).",
+        ),
+      );
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({

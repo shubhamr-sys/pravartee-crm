@@ -34,15 +34,29 @@ START_POSTGRES="${START_POSTGRES:-true}"
 RUN_SETUP="${RUN_SETUP:-true}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change_me_strong_password}"
 DEBUG="${DEBUG:-True}"
+ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
 
 APP_HOST="$(detect_app_host)"
-API_URL="http://${APP_HOST}:${BACKEND_PORT}"
-FRONTEND_URL="http://${APP_HOST}:${FRONTEND_PORT}"
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  FRONTEND_SCHEME="https"
+  # API is proxied through Next.js on the same origin (see frontend/next.config.ts).
+  API_URL="${FRONTEND_SCHEME}://${APP_HOST}:${FRONTEND_PORT}"
+  FRONTEND_URL="${FRONTEND_SCHEME}://${APP_HOST}:${FRONTEND_PORT}"
+else
+  FRONTEND_SCHEME="http"
+  API_URL="http://${APP_HOST}:${BACKEND_PORT}"
+  FRONTEND_URL="http://${APP_HOST}:${FRONTEND_PORT}"
+fi
 
 echo "=============================================="
 echo " Pravartee CRM"
-echo " Backend:  ${API_URL}"
+echo " Backend:  http://127.0.0.1:${BACKEND_PORT} (proxied at /api when HTTPS)"
 echo " Frontend: ${FRONTEND_URL}"
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  echo " GPS:      enabled (HTTPS — accept the self-signed cert on each device)"
+else
+  echo " GPS:      localhost only — use ./start-https.sh for LAN devices"
+fi
 echo "=============================================="
 
 # --- PostgreSQL (Docker) ---
@@ -87,6 +101,9 @@ if [[ "$SECRET_KEY" == "change-me-generate-a-random-secret-key" || -z "$SECRET_K
 fi
 
 CORS_ORIGINS="http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT},http://${APP_HOST}:${FRONTEND_PORT}"
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  CORS_ORIGINS="${CORS_ORIGINS},https://localhost:${FRONTEND_PORT},https://127.0.0.1:${FRONTEND_PORT},https://${APP_HOST}:${FRONTEND_PORT}"
+fi
 ALLOWED="localhost,127.0.0.1,${APP_HOST}"
 
 set_env_value backend/.env DJANGO_SETTINGS_MODULE "config.settings.development"
@@ -105,8 +122,10 @@ set_env_value backend/.env CORS_ALLOW_ALL_ORIGINS "True"
 cat > frontend/.env.local <<EOF
 # Browser uses same hostname as the page + BACKEND_PORT (localhost or LAN IP).
 NEXT_PUBLIC_BACKEND_PORT=${BACKEND_PORT}
+BACKEND_PORT=${BACKEND_PORT}
 # SSR / server-side fallback only
 NEXT_PUBLIC_API_URL=http://127.0.0.1:${BACKEND_PORT}
+NEXT_PUBLIC_USE_SAME_ORIGIN_API=true
 LAN_DEV_ORIGIN=${APP_HOST}
 EOF
 
@@ -124,9 +143,13 @@ if [[ -f "$RUN_DIR/backend.pid" ]]; then
   rm -f "$RUN_DIR/backend.pid"
 fi
 
-# --- Start backend ---
-echo "Starting backend on ${BACKEND_HOST}:${BACKEND_PORT}..."
-(cd backend && python manage.py runserver "${BACKEND_HOST}:${BACKEND_PORT}") &
+# --- Start backend (localhost only when HTTPS — API reached via Next.js proxy) ---
+BACKEND_BIND="${BACKEND_HOST}"
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  BACKEND_BIND="127.0.0.1"
+fi
+echo "Starting backend on ${BACKEND_BIND}:${BACKEND_PORT}..."
+(cd backend && python manage.py runserver "${BACKEND_BIND}:${BACKEND_PORT}") &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$RUN_DIR/backend.pid"
 
@@ -146,4 +169,11 @@ cd frontend
 if [[ ! -d node_modules ]]; then
   npm install
 fi
-exec npx next dev -H "${FRONTEND_HOST}" -p "${FRONTEND_PORT}"
+NEXT_DEV_ARGS=(-H "${FRONTEND_HOST}" -p "${FRONTEND_PORT}")
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  cert_paths="$(ensure_lan_https_cert "$ROOT" "$APP_HOST")"
+  https_key="${cert_paths%%:*}"
+  https_cert="${cert_paths##*:}"
+  NEXT_DEV_ARGS+=(--experimental-https --experimental-https-key "$https_key" --experimental-https-cert "$https_cert")
+fi
+exec npx next dev "${NEXT_DEV_ARGS[@]}"

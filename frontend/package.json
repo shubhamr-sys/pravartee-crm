@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p ${PORT:-3034}",
     "dev:network": "next dev -H 0.0.0.0 -p ${PORT:-3034}",
+    "dev:https": "next dev --experimental-https -H 0.0.0.0 -p ${PORT:-3034}",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
