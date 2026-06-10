@@ -121,4 +121,6 @@ class AttendanceListView(generics.ListAPIView):
             )
         elif status_filter == "absent":
             queryset = queryset.filter(punch_in_time__isnull=True)
+        elif status_filter == "punched_in":
+            queryset = queryset.filter(punch_in_time__isnull=False)
         return queryset

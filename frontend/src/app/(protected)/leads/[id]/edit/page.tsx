@@ -16,6 +16,7 @@ import {
   fetchCategories,
   fetchLead,
   fetchStages,
+  toLeadApiPayload,
   updateLead,
 } from "@/lib/leadsService";
 import type {
@@ -25,21 +26,27 @@ import type {
   LeadStage,
   ProductCategory,
 } from "@/types/lead";
+import { emptyLeadItem, leadItemToFormData } from "@/types/lead";
 
 function leadToFormData(lead: Lead): LeadFormData {
+  const items =
+    lead.items && lead.items.length > 0
+      ? lead.items.map(leadItemToFormData)
+      : [emptyLeadItem(lead.category || "")];
+
   return {
     customer_name: lead.customer_name,
     company_name: lead.company_name,
     contact_person: lead.contact_person,
     phone: lead.phone,
     email: lead.email,
-    estimated_value: String(lead.estimated_value),
-    category: lead.category,
+    category: lead.category || "",
     stage: lead.stage,
     next_followup_date: lead.next_followup_date || "",
     notes: lead.notes,
     assigned_to: lead.assigned_to || "",
-    lead_source: lead.lead_source,
+    record_type: lead.record_type || "LEAD",
+    items,
   };
 }
 
@@ -69,7 +76,9 @@ export default function EditLeadPage() {
         fetchCategories(),
       ]);
       setLead(leadData);
-      setInitialValues(leadToFormData(leadData));
+      setInitialValues(
+        leadToFormData(leadData),
+      );
       setStages(stageData);
       setCategories(categoryData);
 
@@ -97,13 +106,13 @@ export default function EditLeadPage() {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const payload: Partial<LeadFormData> = {
+    const payload = toLeadApiPayload({
+      record_type: values.record_type,
       stage: values.stage,
-      category: values.category,
-      estimated_value: values.estimated_value || "0",
       next_followup_date: values.next_followup_date || undefined,
       notes: values.notes,
-    };
+      items: values.items,
+    });
 
     if (canAssign) {
       payload.assigned_to = values.assigned_to || undefined;
@@ -152,7 +161,7 @@ export default function EditLeadPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Edit Lead</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Update stage, category, value, follow-up, notes
+          Update products, stage, follow-up, notes
           {canAssign ? ", and assignment" : ""} for {lead.customer_name}.
         </p>
       </div>

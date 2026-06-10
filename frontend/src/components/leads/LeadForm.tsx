@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
+import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
 import {
-  LEAD_SOURCE_OPTIONS,
+  getRecordTypeLabel,
   type AssignableUser,
   type LeadFormData,
+  type LeadRecordType,
   type LeadStage,
   type ProductCategory,
 } from "@/types/lead";
@@ -56,9 +59,6 @@ export default function LeadForm({
     if (mode === "create" && !values.company_name.trim()) {
       errors.company_name = "Company name is required.";
     }
-    if (!values.category) {
-      errors.category = "Category is required.";
-    }
     if (!values.stage) {
       errors.stage = "Stage is required.";
     }
@@ -68,10 +68,34 @@ export default function LeadForm({
     if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
       errors.email = "Enter a valid email address.";
     }
-    const dealValue = Number(values.estimated_value);
-    if (values.estimated_value && (Number.isNaN(dealValue) || dealValue < 0)) {
-      errors.estimated_value = "Enter a valid deal value (zero or greater).";
+
+    const hasValidItems = values.items.some(
+      (item) =>
+        item.category && item.product && Number(item.quantity) >= 1,
+    );
+    if (!hasValidItems) {
+      errors.items =
+        "Add at least one complete product line (category, product, quantity).";
     }
+
+    for (const item of values.items) {
+      if (item.category || item.product || item.brand || item.model) {
+        if (!item.category || !item.product) {
+          errors.items = "Each line must have category and product selected.";
+          break;
+        }
+        if (item.model && !item.brand) {
+          errors.items = "Select a brand before selecting a model.";
+          break;
+        }
+        const qty = Number(item.quantity);
+        if (Number.isNaN(qty) || qty < 1) {
+          errors.items = "Quantity must be at least 1 for each product.";
+          break;
+        }
+      }
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -82,8 +106,23 @@ export default function LeadForm({
     await onSubmit(values);
   }
 
+  const recordType = values.record_type || "LEAD";
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5">
+        <div>
+          <p className="text-sm font-medium text-slate-700">Record type</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Choose whether you are logging a {getRecordTypeLabel(recordType).toLowerCase()}.
+          </p>
+        </div>
+        <LeadVisitToggle
+          value={recordType}
+          onChange={(next: LeadRecordType) => updateField("record_type", next)}
+        />
+      </div>
+
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -145,57 +184,17 @@ export default function LeadForm({
               <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
             )}
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Estimated Value</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={values.estimated_value}
-              onChange={(e) => updateField("estimated_value", e.target.value)}
-            />
-            {fieldErrors.estimated_value && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Lead Source</label>
-            <select
-              className={inputClass}
-              value={values.lead_source || "OTHER"}
-              onChange={(e) => updateField("lead_source", e.target.value)}
-            >
-              {LEAD_SOURCE_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
         </section>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Category *</label>
-          <select
-            className={inputClass}
-            value={values.category}
-            onChange={(e) => updateField("category", e.target.value)}
-          >
-            <option value="">Select category</option>
-            {categories.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.category && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.category}</p>
-          )}
-        </div>
+      <LeadItemsEditor
+        items={values.items}
+        categories={categories}
+        onChange={(items) => updateField("items", items)}
+        errors={fieldErrors}
+      />
 
+      <section className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium">Stage *</label>
           <select
@@ -214,23 +213,6 @@ export default function LeadForm({
             <p className="mt-1 text-sm text-red-600">{fieldErrors.stage}</p>
           )}
         </div>
-
-        {mode === "edit" && (
-          <div>
-            <label className="mb-1 block text-sm font-medium">Estimated Value</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={values.estimated_value}
-              onChange={(e) => updateField("estimated_value", e.target.value)}
-            />
-            {fieldErrors.estimated_value && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.estimated_value}</p>
-            )}
-          </div>
-        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium">Next Follow-up</label>
@@ -280,7 +262,7 @@ export default function LeadForm({
           {isSubmitting
             ? "Saving..."
             : mode === "create"
-              ? "Create Lead"
+              ? `Create ${getRecordTypeLabel(recordType)}`
               : "Save Changes"}
         </button>
         {cancelHref && (

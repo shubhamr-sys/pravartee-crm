@@ -4,14 +4,16 @@ Dashboard aggregation logic for CEO and management views.
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Sum
+from django.db.models import Count
 from django.utils import timezone
 
 from apps.accounts.access import activities_for_user, leads_for_user
 from apps.activities.serializers import LeadActivitySerializer
 from apps.attendance.metrics import get_attendance_metrics
 from apps.leads.models import Lead
+from apps.leads.product_metrics import get_pipeline_product_metrics
 from apps.leads.serializers import LeadSerializer
+from apps.leads.stages import active_pipeline_leads
 
 User = get_user_model()
 STALE_LEAD_DAYS = 3
@@ -36,7 +38,8 @@ def get_dashboard_summary(user: User | None = None) -> dict:
     else:
         active_leads = Lead.objects.filter(is_active=True)
 
-    pipeline_value = active_leads.aggregate(total=Sum("estimated_value"))["total"] or 0
+    pipeline_leads = active_pipeline_leads(active_leads)
+    product_metrics = get_pipeline_product_metrics(user) if user else {}
 
     leads_by_stage = (
         active_leads.values("stage__name")
@@ -62,8 +65,9 @@ def get_dashboard_summary(user: User | None = None) -> dict:
     )
 
     summary = {
-        "pipeline_value": pipeline_value,
+        "pipeline_leads": pipeline_leads.count(),
         "total_active_leads": active_leads.count(),
+        "products": product_metrics,
         "leads_by_stage": list(leads_by_stage),
         "stale_leads_count": stale_leads,
         "stale_lead_threshold_days": STALE_LEAD_DAYS,

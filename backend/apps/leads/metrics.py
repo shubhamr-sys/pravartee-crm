@@ -2,13 +2,14 @@
 Role-scoped lead list summary metrics.
 """
 from datetime import timedelta
-from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db.models import Sum
 from django.utils import timezone
 
 from apps.accounts.access import leads_for_user
+from apps.leads.models import LeadItem
+from apps.leads.stages import active_pipeline_leads
 
 User = get_user_model()
 DUE_SOON_DAYS = 3
@@ -20,7 +21,13 @@ def get_lead_list_metrics(user: User) -> dict:
     due_soon_cutoff = today + timedelta(days=DUE_SOON_DAYS)
 
     leads = leads_for_user(user).filter(is_active=True)
-    pipeline_value = leads.aggregate(total=Sum("estimated_value"))["total"] or 0
+    pipeline_leads = active_pipeline_leads(leads)
+    pipeline_product_quantity = (
+        LeadItem.objects.filter(lead__in=pipeline_leads).aggregate(
+            total=Sum("quantity"),
+        )["total"]
+        or 0
+    )
 
     with_followup = leads.filter(next_followup_date__isnull=False)
     overdue = with_followup.filter(next_followup_date__lt=today).count()
@@ -32,7 +39,8 @@ def get_lead_list_metrics(user: User) -> dict:
 
     return {
         "total_leads": leads.count(),
-        "pipeline_value": Decimal(str(pipeline_value)).quantize(Decimal("0.01")),
+        "pipeline_leads": pipeline_leads.count(),
+        "pipeline_product_quantity": int(pipeline_product_quantity),
         "upcoming_followups": upcoming,
         "overdue_followups": overdue,
         "due_soon_followups": due_soon,

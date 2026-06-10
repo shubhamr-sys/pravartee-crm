@@ -9,9 +9,61 @@ from django.utils import timezone
 
 from apps.attendance.access import attendance_for_user, visible_users_for_attendance
 from apps.attendance.models import Attendance
-from apps.attendance.utils import format_working_hours_display, get_record_status
+from apps.attendance.utils import (
+    AttendanceStatus,
+    format_working_hours_display,
+    get_record_status,
+)
 
 User = get_user_model()
+
+
+def _employee_attendance_row(
+    employee: User,
+    record: Attendance | None,
+    *,
+    today,
+) -> dict:
+    """Serialize one employee for present/absent breakdown lists."""
+    row = {
+        "id": str(employee.id),
+        "name": employee.get_full_name() or employee.username,
+        "role": employee.role,
+    }
+    if record and record.punch_in_time:
+        row["status"] = get_record_status(record, today)
+        row["punch_in_time"] = record.punch_in_time
+        row["punch_out_time"] = record.punch_out_time
+    else:
+        row["status"] = AttendanceStatus.ABSENT
+        row["punch_in_time"] = None
+        row["punch_out_time"] = None
+    return row
+
+
+def _today_employee_breakdown(
+    visible_users,
+    today_records,
+    punched_in_user_ids: set,
+    today,
+) -> tuple[list[dict], list[dict]]:
+    """Split visible employees into present and absent lists for today."""
+    records_by_user = {record.user_id: record for record in today_records}
+    present_employees: list[dict] = []
+    absent_employees: list[dict] = []
+
+    for employee in visible_users.order_by("first_name", "last_name", "username"):
+        record = records_by_user.get(employee.id)
+        if employee.id in punched_in_user_ids:
+            present_employees.append(
+                _employee_attendance_row(employee, record, today=today),
+            )
+        else:
+            absent_employees.append(
+                _employee_attendance_row(employee, record, today=today),
+            )
+
+    return present_employees, absent_employees
 
 
 def get_attendance_metrics(user: User) -> dict:
@@ -40,6 +92,13 @@ def get_attendance_metrics(user: User) -> dict:
     my_status = get_record_status(my_record)
     my_working_hours = my_record.working_hours if my_record else None
 
+    present_employees, absent_employees = _today_employee_breakdown(
+        visible_users,
+        today_records,
+        punched_in_user_ids,
+        today,
+    )
+
     if user.is_ceo:
         return {
             "present_today": present_today,
@@ -49,6 +108,8 @@ def get_attendance_metrics(user: User) -> dict:
             "average_working_hours_display": format_working_hours_display(
                 average_working_hours,
             ),
+            "present_employees": present_employees,
+            "absent_employees": absent_employees,
         }
 
     if user.is_sales_head:
@@ -60,6 +121,8 @@ def get_attendance_metrics(user: User) -> dict:
             "average_team_working_hours_display": format_working_hours_display(
                 average_working_hours,
             ),
+            "present_employees": present_employees,
+            "absent_employees": absent_employees,
         }
 
     return {

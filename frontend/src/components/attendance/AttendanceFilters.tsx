@@ -26,6 +26,7 @@ const ROLE_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
+  { value: "punched_in", label: "Punched In" },
   { value: "present", label: "Present" },
   { value: "in_progress", label: "In Progress" },
   { value: "incomplete", label: "Incomplete" },

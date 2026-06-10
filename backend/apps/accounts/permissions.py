@@ -13,6 +13,19 @@ class IsAuthenticatedCRMUser(permissions.BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
 
+class IsCEO(permissions.BasePermission):
+    """Allow only CEO role."""
+
+    message = "This action requires CEO privileges."
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_ceo,
+        )
+
+
 class IsCEOOrSalesHead(permissions.BasePermission):
     """Allow only CEO or Sales Head roles."""
 
@@ -22,7 +35,7 @@ class IsCEOOrSalesHead(permissions.BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and user_sees_all_leads(request.user)
+            and user_sees_all_leads(request.user),
         )
 
 

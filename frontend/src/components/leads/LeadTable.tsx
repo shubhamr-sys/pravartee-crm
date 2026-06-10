@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import FollowupBadge from "@/components/leads/FollowupBadge";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { askForPrice } from "@/lib/leadsService";
 import type { Lead } from "@/types/lead";
 
 interface LeadTableProps {
@@ -12,6 +14,24 @@ interface LeadTableProps {
 }
 
 export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
+  const [requestingId, setRequestingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ id: string; message: string } | null>(
+    null,
+  );
+
+  async function handleAskForPrice(lead: Lead) {
+    setRequestingId(lead.id);
+    setFeedback(null);
+    try {
+      const response = await askForPrice(lead.id);
+      setFeedback({ id: lead.id, message: response.message });
+    } catch {
+      setFeedback({ id: lead.id, message: "Unable to submit price request." });
+    } finally {
+      setRequestingId(null);
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -23,7 +43,7 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
               <th className="px-4 py-3 text-left font-medium text-slate-600">Stage</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Category</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Assigned To</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Value</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Products</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Follow-up</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
             </tr>
@@ -53,8 +73,8 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
                 <td className="px-4 py-3 text-slate-700">
                   {lead.assigned_to_name || "Unassigned"}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {formatCurrency(lead.estimated_value)}
+                <td className="px-4 py-3 text-slate-700">
+                  {lead.items?.length ?? 0} line{(lead.items?.length ?? 0) === 1 ? "" : "s"}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
@@ -68,20 +88,41 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
-                    <Link
-                      href={`/leads/${lead.id}`}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      View
-                    </Link>
-                    {canEdit && (
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Link
-                        href={`/leads/${lead.id}/edit`}
-                        className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
+                        href={`/leads/${lead.id}`}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                       >
-                        Edit
+                        View
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => void handleAskForPrice(lead)}
+                        disabled={requestingId === lead.id}
+                        className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                      >
+                        {requestingId === lead.id ? "Sending..." : "Ask for price"}
+                      </button>
+                      {canEdit && (
+                        <Link
+                          href={`/leads/${lead.id}/edit`}
+                          className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
+                        >
+                          Edit
+                        </Link>
+                      )}
+                    </div>
+                    {feedback?.id === lead.id && (
+                      <p
+                        className={`text-xs ${
+                          feedback.message.includes("Unable")
+                            ? "text-red-600"
+                            : "text-green-700"
+                        }`}
+                      >
+                        {feedback.message}
+                      </p>
                     )}
                   </div>
                 </td>

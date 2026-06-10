@@ -16,7 +16,8 @@ import { fetchLeadActivities } from "@/lib/activityService";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
-import { getLeadSourceLabel, type Lead } from "@/types/lead";
+import { getUomLabel } from "@/lib/leadItemUom";
+import type { Lead } from "@/types/lead";
 
 function DetailItem({
   label,
@@ -184,14 +185,6 @@ export default function LeadDetailPage() {
             <DetailItem label="Stage" value={lead.stage_name} />
             <DetailItem label="Category" value={lead.category_name} />
             <DetailItem label="Assigned To" value={lead.assigned_to_name} />
-            <DetailItem
-              label="Estimated Value"
-              value={formatCurrency(lead.estimated_value)}
-            />
-            <DetailItem
-              label="Lead Source"
-              value={getLeadSourceLabel(lead.lead_source)}
-            />
             <div className="rounded-lg bg-slate-50 px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Next Follow-up Date
@@ -211,6 +204,46 @@ export default function LeadDetailPage() {
           </div>
         </section>
       </div>
+
+      {lead.items && lead.items.length > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Products</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Category</th>
+                  <th className="px-3 py-2 font-medium">Product</th>
+                  <th className="px-3 py-2 font-medium">Brand</th>
+                  <th className="px-3 py-2 font-medium">Model</th>
+                  <th className="px-3 py-2 font-medium">Qty</th>
+                  <th className="px-3 py-2 font-medium">UOM</th>
+                  <th className="px-3 py-2 font-medium">Specification</th>
+                  <th className="px-3 py-2 font-medium">Remarks / Scope</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lead.items.map((item) => (
+                  <tr key={item.id} className="border-b border-slate-100">
+                    <td className="px-3 py-2">{item.category_name}</td>
+                    <td className="px-3 py-2">{item.product_name}</td>
+                    <td className="px-3 py-2">{item.brand_name || "—"}</td>
+                    <td className="px-3 py-2">{item.model_name || "—"}</td>
+                    <td className="px-3 py-2">{item.quantity}</td>
+                    <td className="px-3 py-2">{getUomLabel(item.uom)}</td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {item.specification || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {item.remarks || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Notes</h2>

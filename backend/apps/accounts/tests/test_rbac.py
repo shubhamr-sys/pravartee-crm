@@ -1,8 +1,6 @@
 """
 RBAC enforcement tests for leads, activities, and dashboard APIs.
 """
-from decimal import Decimal
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
@@ -21,7 +19,7 @@ class RBACAPITestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.create(name="Test Category")
-        cls.stage = LeadStage.objects.create(name="New", sequence=1)
+        cls.stage = LeadStage.objects.get(name="New")
 
         cls.ceo = User.objects.create_user(
             username="ceo_test",
@@ -59,7 +57,6 @@ class RBACAPITestCase(TestCase):
         cls.lead_ceo = Lead.objects.create(
             customer_name="Procurement Officer",
             company_name="CEO Account",
-            estimated_value=Decimal("50000.00"),
             category=cls.category,
             stage=cls.stage,
             assigned_to=cls.ceo,
@@ -67,7 +64,6 @@ class RBACAPITestCase(TestCase):
         cls.lead_head = Lead.objects.create(
             customer_name="Amit Sharma",
             company_name="Head Account",
-            estimated_value=Decimal("30000.00"),
             category=cls.category,
             stage=cls.stage,
             assigned_to=cls.sales_head,
@@ -75,7 +71,6 @@ class RBACAPITestCase(TestCase):
         cls.lead_sales = Lead.objects.create(
             customer_name="Raj Kumar",
             company_name="Sales Account",
-            estimated_value=Decimal("10000.00"),
             category=cls.category,
             stage=cls.stage,
             assigned_to=cls.sales_a,
@@ -83,7 +78,6 @@ class RBACAPITestCase(TestCase):
         cls.lead_sales_b = Lead.objects.create(
             customer_name="Customer B",
             company_name="Company B",
-            estimated_value=Decimal("20000.00"),
             category=cls.category,
             stage=cls.stage,
             assigned_to=cls.sales_b,
@@ -295,30 +289,21 @@ class RBACAPITestCase(TestCase):
         response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_active_leads"], 4)
-        self.assertEqual(
-            Decimal(str(response.data["pipeline_value"])),
-            Decimal("110000.00"),
-        )
+        self.assertEqual(response.data["pipeline_leads"], 4)
 
     def test_sales_head_dashboard_excludes_ceo_leads(self):
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_active_leads"], 3)
-        self.assertEqual(
-            Decimal(str(response.data["pipeline_value"])),
-            Decimal("60000.00"),
-        )
+        self.assertEqual(response.data["pipeline_leads"], 3)
 
     def test_salesperson_dashboard_scoped_to_assigned_leads(self):
         self._auth(self.sales_a)
         response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_active_leads"], 1)
-        self.assertEqual(
-            Decimal(str(response.data["pipeline_value"])),
-            Decimal("10000.00"),
-        )
+        self.assertEqual(response.data["pipeline_leads"], 1)
 
     # --- Authentication required ---
 

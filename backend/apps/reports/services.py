@@ -11,22 +11,17 @@ from django.utils import timezone
 from apps.accounts.access import leads_for_user
 from apps.accounts.choices import UserRole
 from apps.activities.models import ActivityType, LeadActivity
-from apps.leads.models import Lead, LeadStage
+from apps.leads.models import LeadItem
+from apps.leads.product_metrics import get_product_report_metrics
+from apps.leads.stages import (
+    ACTIVE_PIPELINE_STAGES,
+    ALL_STAGES_ORDER,
+    LOST_STAGE,
+    WON_STAGE,
+    active_pipeline_leads,
+)
 
 User = get_user_model()
-
-WON_STAGE = "Won"
-LOST_STAGE = "Lost"
-QUALIFIED_STAGE = "Qualified"
-PIPELINE_STAGE_ORDER = [
-    "New",
-    "Contacted",
-    "Qualified",
-    "Quoted",
-    "Negotiation",
-    "Won",
-    "Lost",
-]
 
 
 def _decimal(value) -> Decimal:
@@ -55,21 +50,26 @@ def scoped_leads(user: User, salesperson_id: str | None = None):
     return qs
 
 
+def _assignee_display_name(user: User) -> str:
+    """Human-readable assignee label for report filters."""
+    name = user.get_full_name() or user.username
+    if user.is_ceo:
+        return f"{name} (CEO)"
+    if user.is_sales_head:
+        return f"{name} (Sales Head)"
+    return name
+
+
 def filterable_salespeople(user: User):
-    """Users available in the salesperson filter dropdown."""
+    """Users available in the report assignee filter dropdown."""
     qs = User.objects.filter(is_active=True).order_by("first_name", "last_name")
     if user.is_ceo:
-        return qs.filter(role__in=[UserRole.SALES_HEAD, UserRole.SALESPERSON])
+        return qs.filter(
+            role__in=[UserRole.CEO, UserRole.SALES_HEAD, UserRole.SALESPERSON],
+        )
     if user.is_sales_head:
         return qs.filter(role=UserRole.SALESPERSON)
     return qs.none()
-
-
-def _qualified_sequence() -> int:
-    return LeadStage.objects.filter(name=QUALIFIED_STAGE).values_list(
-        "sequence",
-        flat=True,
-    ).first() or 3
 
 
 def _won_lost_lead_ids(
@@ -98,6 +98,11 @@ def _won_lost_lead_ids(
     return from_activities | from_stage
 
 
+def _win_rate(won: int, lost: int) -> float:
+    closed = won + lost
+    return round((won / closed) * 100, 1) if closed else 0.0
+
+
 def get_sales_mbr_report(
     user: User,
     year: int,
@@ -107,60 +112,67 @@ def get_sales_mbr_report(
     """Build the Sales MBR JSON payload."""
     start, end = get_period_bounds(year, month)
     leads = scoped_leads(user, salesperson_id)
-    qualified_seq = _qualified_sequence()
 
     period_leads = leads.filter(created_at__gte=start, created_at__lt=end)
     total_leads = period_leads.count()
-    qualified_leads = period_leads.filter(stage__sequence__gte=qualified_seq).count()
+    active_pipeline_leads_count = period_leads.filter(
+        stage__name__in=ACTIVE_PIPELINE_STAGES,
+    ).count()
 
     won_ids = _won_lost_lead_ids(leads, ActivityType.LEAD_CLOSED_WON, start, end)
     lost_ids = _won_lost_lead_ids(leads, ActivityType.LEAD_CLOSED_LOST, start, end)
     won_deals = len(won_ids)
     lost_deals = len(lost_ids)
+    win_rate = _win_rate(won_deals, lost_deals)
 
     won_leads = leads.filter(id__in=won_ids) if won_ids else leads.none()
-    revenue = _decimal(won_leads.aggregate(total=Sum("estimated_value"))["total"])
-    average_deal_size = (
-        _decimal(revenue / won_deals) if won_deals else Decimal("0.00")
+    won_product_quantity = int(
+        LeadItem.objects.filter(lead__in=won_leads).aggregate(
+            total=Sum("quantity"),
+        )["total"]
+        or 0,
+    )
+    average_products_per_won_deal = (
+        round(won_product_quantity / won_deals, 1) if won_deals else 0.0
     )
 
-    open_pipeline = leads.exclude(stage__name__in=[WON_STAGE, LOST_STAGE])
-    pipeline_value = _decimal(
-        open_pipeline.aggregate(total=Sum("estimated_value"))["total"]
+    open_pipeline = active_pipeline_leads(leads)
+    pipeline_product_quantity = int(
+        LeadItem.objects.filter(lead__in=open_pipeline).aggregate(
+            total=Sum("quantity"),
+        )["total"]
+        or 0,
     )
 
     stage_rows = (
         leads.values("stage__name", "stage__sequence")
-        .annotate(count=Count("id"), value=Sum("estimated_value"))
+        .annotate(count=Count("id"))
         .order_by("stage__sequence")
     )
-    stage_map = {
-        row["stage__name"]: {
-            "stage": row["stage__name"],
+    stage_map: dict[str, dict] = {}
+    for row in stage_rows:
+        name = row["stage__name"]
+        stage_map[name] = {
+            "stage": name,
             "count": row["count"],
-            "value": _decimal(row["value"]),
         }
-        for row in stage_rows
-    }
+
     pipeline_by_stage = [
-        stage_map.get(
-            name,
-            {"stage": name, "count": 0, "value": Decimal("0.00")},
-        )
-        for name in PIPELINE_STAGE_ORDER
+        stage_map.get(name, {"stage": name, "count": 0})
+        for name in ALL_STAGES_ORDER
     ]
 
-    top_customers_qs = (
-        open_pipeline.order_by("-estimated_value")[:10]
-    )
+    top_customers_qs = open_pipeline.order_by("-updated_at")[:10]
     top_customers = [
         {
             "customer": lead.customer_name,
             "company": lead.company_name or "—",
-            "value": _decimal(lead.estimated_value),
+            "product_quantity": int(
+                lead.items.aggregate(total=Sum("quantity"))["total"] or 0,
+            ),
             "stage": lead.stage.name,
         }
-        for lead in top_customers_qs
+        for lead in top_customers_qs.prefetch_related("items")
     ]
 
     salesperson_rows = []
@@ -190,11 +202,13 @@ def get_sales_mbr_report(
             )
             user_won = len(user_won_ids)
             user_lost = len(user_lost_ids)
-            closed = user_won + user_lost
-            conversion = (
-                round((user_won / closed) * 100, 1) if closed else 0.0
+            user_open = active_pipeline_leads(user_leads)
+            user_pipeline_quantity = int(
+                LeadItem.objects.filter(lead__in=user_open).aggregate(
+                    total=Sum("quantity"),
+                )["total"]
+                or 0,
             )
-            user_open = user_leads.exclude(stage__name__in=[WON_STAGE, LOST_STAGE])
             salesperson_rows.append(
                 {
                     "user_id": str(assignee.id),
@@ -202,10 +216,9 @@ def get_sales_mbr_report(
                     "leads_managed": user_leads.count(),
                     "won_deals": user_won,
                     "lost_deals": user_lost,
-                    "pipeline_value": _decimal(
-                        user_open.aggregate(total=Sum("estimated_value"))["total"]
-                    ),
-                    "conversion_rate": conversion,
+                    "pipeline_product_quantity": user_pipeline_quantity,
+                    "conversion_rate": _win_rate(user_won, user_lost),
+                    "win_rate": _win_rate(user_won, user_lost),
                 }
             )
 
@@ -220,12 +233,14 @@ def get_sales_mbr_report(
         },
         "performance_summary": {
             "total_leads": total_leads,
-            "qualified_leads": qualified_leads,
+            "active_pipeline_leads": active_pipeline_leads_count,
+            "qualified_leads": active_pipeline_leads_count,
             "won_deals": won_deals,
             "lost_deals": lost_deals,
-            "pipeline_value": pipeline_value,
-            "revenue": revenue,
-            "average_deal_size": average_deal_size,
+            "win_rate": win_rate,
+            "pipeline_product_quantity": pipeline_product_quantity,
+            "won_product_quantity": won_product_quantity,
+            "average_products_per_won_deal": average_products_per_won_deal,
         },
         "pipeline_by_stage": pipeline_by_stage,
         "top_customers": top_customers,
@@ -233,10 +248,11 @@ def get_sales_mbr_report(
         "salespeople": [
             {
                 "id": str(sp.id),
-                "name": sp.get_full_name() or sp.username,
+                "name": _assignee_display_name(sp),
             }
             for sp in filterable_salespeople(user)
         ],
+        "products": get_product_report_metrics(user),
     }
 
 

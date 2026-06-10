@@ -1,7 +1,6 @@
 """
 Sales MBR report API tests — metrics and RBAC.
 """
-from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
@@ -13,7 +12,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.choices import UserRole
 from apps.activities.models import ActivityType, LeadActivity
-from apps.leads.models import Lead, LeadStage, ProductCategory
+from apps.leads.models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 
 User = get_user_model()
 
@@ -21,11 +20,14 @@ User = get_user_model()
 class SalesMBRReportTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.category = ProductCategory.objects.create(name="Server")
-        cls.stage_new = LeadStage.objects.create(name="New", sequence=1)
-        cls.stage_qualified = LeadStage.objects.create(name="Qualified", sequence=3)
-        cls.stage_won = LeadStage.objects.create(name="Won", sequence=6)
-        cls.stage_lost = LeadStage.objects.create(name="Lost", sequence=7)
+        cls.category = ProductCategory.objects.get(name="IT")
+        cls.product = Product.objects.get(category=cls.category, name="Laptop")
+        cls.brand = Brand.objects.get(product=cls.product, name="Dell")
+        cls.product_model = ProductModel.objects.get(brand=cls.brand, name="Latitude 5540")
+        cls.stage_new = LeadStage.objects.get(name="New")
+        cls.stage_pre_bid = LeadStage.objects.get(name="Pre Bid")
+        cls.stage_won = LeadStage.objects.get(name="Won")
+        cls.stage_lost = LeadStage.objects.get(name="Lost")
 
         cls.ceo = User.objects.create_user(
             username="ceo_mbr",
@@ -52,22 +54,36 @@ class SalesMBRReportTestCase(TestCase):
         cls.lead_open = Lead.objects.create(
             customer_name="Acme Corp",
             company_name="Acme Industries",
-            estimated_value=Decimal("100000.00"),
             category=cls.category,
-            stage=cls.stage_qualified,
+            stage=cls.stage_pre_bid,
             assigned_to=cls.salesperson,
         )
         Lead.objects.filter(pk=cls.lead_open.pk).update(created_at=now)
+        LeadItem.objects.create(
+            lead=cls.lead_open,
+            category=cls.category,
+            product=cls.product,
+            brand=cls.brand,
+            product_model=cls.product_model,
+            quantity=10,
+        )
 
         cls.lead_won = Lead.objects.create(
             customer_name="Beta Ltd",
             company_name="Beta Systems",
-            estimated_value=Decimal("50000.00"),
             category=cls.category,
             stage=cls.stage_won,
             assigned_to=cls.salesperson,
         )
         Lead.objects.filter(pk=cls.lead_won.pk).update(created_at=now, updated_at=now)
+        LeadItem.objects.create(
+            lead=cls.lead_won,
+            category=cls.category,
+            product=cls.product,
+            brand=cls.brand,
+            product_model=cls.product_model,
+            quantity=5,
+        )
         LeadActivity.objects.create(
             lead=cls.lead_won,
             user=cls.salesperson,
@@ -78,9 +94,8 @@ class SalesMBRReportTestCase(TestCase):
         cls.lead_ceo = Lead.objects.create(
             customer_name="CEO Account",
             company_name="Executive Co",
-            estimated_value=Decimal("200000.00"),
             category=cls.category,
-            stage=cls.stage_qualified,
+            stage=cls.stage_pre_bid,
             assigned_to=cls.ceo,
         )
         Lead.objects.filter(pk=cls.lead_ceo.pk).update(created_at=now)
@@ -101,6 +116,8 @@ class SalesMBRReportTestCase(TestCase):
         response = self.client.get("/api/v1/reports/sales/", self.params)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("performance_summary", response.data)
+        self.assertIn("active_pipeline_leads", response.data["performance_summary"])
+        self.assertIn("win_rate", response.data["performance_summary"])
         self.assertIn("pipeline_by_stage", response.data)
         self.assertGreaterEqual(
             response.data["performance_summary"]["total_leads"],
@@ -140,6 +157,27 @@ class SalesMBRReportTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["filters"]["salesperson_id"], str(self.salesperson.id))
 
+    def test_ceo_assignee_available_in_filter(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        assignee_ids = [item["id"] for item in response.data["salespeople"]]
+        self.assertIn(str(self.ceo.id), assignee_ids)
+        ceo_option = next(
+            item for item in response.data["salespeople"] if item["id"] == str(self.ceo.id)
+        )
+        self.assertIn("(CEO)", ceo_option["name"])
+
+    def test_ceo_assignee_filter_shows_ceo_owned_leads(self):
+        self._auth(self.ceo)
+        response = self.client.get(
+            "/api/v1/reports/sales/",
+            {**self.params, "salesperson": str(self.ceo.id)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        companies = [item["company"] for item in response.data["top_customers"]]
+        self.assertIn("Executive Co", companies)
+
     def test_invalid_month_returns_400(self):
         self._auth(self.ceo)
         response = self.client.get(
@@ -176,8 +214,8 @@ class SalesMBRReportTestCase(TestCase):
         response = self.client.get("/api/v1/reports/sales/", self.params)
         self.assertGreaterEqual(response.data["performance_summary"]["won_deals"], 1)
         self.assertGreaterEqual(
-            float(response.data["performance_summary"]["revenue"]),
-            50000.0,
+            response.data["performance_summary"]["won_product_quantity"],
+            5,
         )
 
     def test_salesperson_performance_includes_assignee(self):

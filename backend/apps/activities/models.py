@@ -16,6 +16,7 @@ class ActivityType(models.TextChoices):
     LEAD_ASSIGNED = "LEAD_ASSIGNED", "Lead Assigned"
     LEAD_CLOSED_WON = "LEAD_CLOSED_WON", "Lead Closed Won"
     LEAD_CLOSED_LOST = "LEAD_CLOSED_LOST", "Lead Closed Lost"
+    PRICE_REQUESTED = "PRICE_REQUESTED", "Price Requested"
 
 
 class LeadActivity(UUIDModel):

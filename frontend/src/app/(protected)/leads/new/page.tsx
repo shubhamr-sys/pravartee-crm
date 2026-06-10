@@ -13,6 +13,7 @@ import {
   fetchAssignableUsers,
   fetchCategories,
   fetchStages,
+  toLeadApiPayload,
 } from "@/lib/leadsService";
 import type {
   AssignableUser,
@@ -20,6 +21,7 @@ import type {
   LeadStage,
   ProductCategory,
 } from "@/types/lead";
+import { emptyLeadItem } from "@/types/lead";
 
 const emptyForm: LeadFormData = {
   customer_name: "",
@@ -27,13 +29,13 @@ const emptyForm: LeadFormData = {
   contact_person: "",
   phone: "",
   email: "",
-  estimated_value: "0",
   category: "",
   stage: "",
   next_followup_date: "",
   notes: "",
   assigned_to: "",
-  lead_source: "OTHER",
+  record_type: "LEAD",
+  items: [emptyLeadItem()],
 };
 
 export default function NewLeadPage() {
@@ -66,7 +68,7 @@ export default function NewLeadPage() {
         setInitialValues((current) => ({
           ...current,
           stage: defaultStage,
-          category: categoryData[0]?.id || "",
+          items: [emptyLeadItem()],
         }));
 
         if (canAssign) {
@@ -87,11 +89,7 @@ export default function NewLeadPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const payload: LeadFormData = {
-        ...values,
-        estimated_value: values.estimated_value || "0",
-        lead_source: values.lead_source || "OTHER",
-      };
+      const payload = toLeadApiPayload(values);
       if (!canAssign) {
         delete payload.assigned_to;
       } else if (!payload.assigned_to) {
@@ -101,7 +99,11 @@ export default function NewLeadPage() {
         delete payload.next_followup_date;
       }
 
-      const lead = await createLead(payload);
+      const lead = await createLead({
+        ...payload,
+        customer_name: values.customer_name,
+        stage: values.stage,
+      });
       router.push(`/leads/${lead.id}?created=1`);
     } catch (error) {
       if (isAxiosError(error)) {
@@ -141,8 +143,8 @@ export default function NewLeadPage() {
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Create Lead</h1>
         <p className="mt-1 text-sm text-slate-500">
           {canAssign
-            ? "Create a lead and optionally assign it to a salesperson."
-            : "This lead will be assigned to you automatically."}
+            ? "Create a lead with products and optionally assign it to a salesperson."
+            : "Add products to this lead. It will be assigned to you automatically."}
         </p>
       </div>
 
