@@ -440,3 +440,20 @@ class LeadManagementTestCase(TestCase):
         self.assertIn("recent_activities", response.data)
         self.assertIn("recent_lead_updates", response.data)
         self.assertIn("products", response.data)
+
+    def test_ask_for_price_logs_activity(self):
+        lead = Lead.objects.create(
+            customer_name="Price Request Lead",
+            category=self.category,
+            stage=self.stage_new,
+            assigned_to=self.salesperson,
+        )
+        self._auth(self.salesperson)
+        response = self.client.post(f"/api/v1/leads/{lead.id}/ask-for-price/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            LeadActivity.objects.filter(
+                lead=lead,
+                activity_type=ActivityType.PRICE_REQUESTED,
+            ).exists(),
+        )

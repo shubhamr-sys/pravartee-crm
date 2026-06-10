@@ -17,6 +17,7 @@ interface AttendanceSummaryCardsProps {
   interactive?: boolean;
   activeView?: AttendanceStatusView | null;
   onViewChange?: (view: AttendanceStatusView | null) => void;
+  onEmployeeClick?: (employee: AttendanceEmployeeSummary) => void;
 }
 
 function SummaryCard({
@@ -59,10 +60,12 @@ function EmployeeStatusPanel({
   title,
   employees,
   emptyMessage,
+  onEmployeeClick,
 }: {
   title: string;
   employees: AttendanceEmployeeSummary[];
   emptyMessage: string;
+  onEmployeeClick?: (employee: AttendanceEmployeeSummary) => void;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -73,28 +76,54 @@ function EmployeeStatusPanel({
         <p className="px-4 py-6 text-sm text-slate-500">{emptyMessage}</p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {employees.map((employee) => (
-            <li
-              key={employee.id}
-              className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-medium text-slate-900">{employee.name}</p>
-                <p className="text-xs text-slate-500">
-                  {getRoleLabel(employee.role as "CEO" | "SALES_HEAD" | "SALESPERSON")}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                <StatusBadge status={employee.status} />
-                {employee.punch_in_time && (
-                  <span>In: {formatTime(employee.punch_in_time)}</span>
-                )}
-                {employee.punch_out_time && (
-                  <span>Out: {formatTime(employee.punch_out_time)}</span>
-                )}
-              </div>
-            </li>
-          ))}
+          {employees.map((employee) =>
+            onEmployeeClick ? (
+              <li key={employee.id}>
+                <button
+                  type="button"
+                  onClick={() => onEmployeeClick(employee)}
+                  className="flex w-full flex-col gap-2 px-4 py-3 text-left transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-teal-700">{employee.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {getRoleLabel(employee.role as "CEO" | "SALES_HEAD" | "SALESPERSON")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                    <StatusBadge status={employee.status} />
+                    {employee.punch_in_time && (
+                      <span>In: {formatTime(employee.punch_in_time)}</span>
+                    )}
+                    {employee.punch_out_time && (
+                      <span>Out: {formatTime(employee.punch_out_time)}</span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ) : (
+              <li
+                key={employee.id}
+                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-slate-900">{employee.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {getRoleLabel(employee.role as "CEO" | "SALES_HEAD" | "SALESPERSON")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <StatusBadge status={employee.status} />
+                  {employee.punch_in_time && (
+                    <span>In: {formatTime(employee.punch_in_time)}</span>
+                  )}
+                  {employee.punch_out_time && (
+                    <span>Out: {formatTime(employee.punch_out_time)}</span>
+                  )}
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>
@@ -108,6 +137,7 @@ export default function AttendanceSummaryCards({
   interactive = false,
   activeView = null,
   onViewChange,
+  onEmployeeClick,
 }: AttendanceSummaryCardsProps) {
   if (!metrics) return null;
 
@@ -120,6 +150,9 @@ export default function AttendanceSummaryCards({
     "present_employees" in metrics ? (metrics.present_employees ?? []) : [];
   const absentEmployees =
     "absent_employees" in metrics ? (metrics.absent_employees ?? []) : [];
+  const allEmployees = [...presentEmployees, ...absentEmployees].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   if (isCEO && "present_today" in metrics) {
     return (
@@ -139,7 +172,12 @@ export default function AttendanceSummaryCards({
             active={activeView === "absent"}
             onClick={interactive ? () => toggleView("absent") : undefined}
           />
-          <SummaryCard label="Total Employees" value={metrics.total_employees} />
+          <SummaryCard
+            label="Total Employees"
+            value={metrics.total_employees}
+            active={activeView === "all"}
+            onClick={interactive ? () => toggleView("all") : undefined}
+          />
           <SummaryCard
             label="Average Hours"
             value={
@@ -154,6 +192,7 @@ export default function AttendanceSummaryCards({
             title="Present Today"
             employees={presentEmployees}
             emptyMessage="No employees have punched in today."
+            onEmployeeClick={onEmployeeClick}
           />
         )}
         {interactive && activeView === "absent" && (
@@ -161,6 +200,15 @@ export default function AttendanceSummaryCards({
             title="Absent Today"
             employees={absentEmployees}
             emptyMessage="Everyone has punched in today."
+            onEmployeeClick={onEmployeeClick}
+          />
+        )}
+        {interactive && activeView === "all" && (
+          <EmployeeStatusPanel
+            title="All Employees"
+            employees={allEmployees}
+            emptyMessage="No employees found."
+            onEmployeeClick={onEmployeeClick}
           />
         )}
       </div>
@@ -190,6 +238,8 @@ export default function AttendanceSummaryCards({
             value={
               metrics.team_members ?? metrics.team_present + metrics.team_absent
             }
+            active={activeView === "all"}
+            onClick={interactive ? () => toggleView("all") : undefined}
           />
           <SummaryCard
             label="Average Hours"
@@ -205,6 +255,7 @@ export default function AttendanceSummaryCards({
             title="Team Present Today"
             employees={presentEmployees}
             emptyMessage="No team members have punched in today."
+            onEmployeeClick={onEmployeeClick}
           />
         )}
         {interactive && activeView === "absent" && (
@@ -212,6 +263,15 @@ export default function AttendanceSummaryCards({
             title="Team Absent Today"
             employees={absentEmployees}
             emptyMessage="All team members have punched in today."
+            onEmployeeClick={onEmployeeClick}
+          />
+        )}
+        {interactive && activeView === "all" && (
+          <EmployeeStatusPanel
+            title="All Team Members"
+            employees={allEmployees}
+            emptyMessage="No team members found."
+            onEmployeeClick={onEmployeeClick}
           />
         )}
       </div>

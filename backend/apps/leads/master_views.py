@@ -6,11 +6,10 @@ from apps.accounts.permissions import IsAuthenticatedCRMUser, IsCEO
 
 from .master_serializers import (
     BrandMasterSerializer,
-    ProductCategoryMasterSerializer,
     ProductMasterSerializer,
     ProductModelMasterSerializer,
 )
-from .models import Brand, Product, ProductCategory, ProductModel
+from .models import Brand, Product, ProductModel
 
 
 class MasterReadMixin:
@@ -18,15 +17,6 @@ class MasterReadMixin:
 
     def get_permissions(self):
         return [IsAuthenticatedCRMUser()]
-
-
-class CEOManageCategoryMixin(MasterReadMixin):
-    """Categories: CEO-only create, update, and delete."""
-
-    def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
-            return [IsAuthenticatedCRMUser(), IsCEO()]
-        return super().get_permissions()
 
 
 class MasterDataCreateMixin(MasterReadMixin):
@@ -39,11 +29,6 @@ class MasterDataCreateMixin(MasterReadMixin):
         if self.action in ("update", "partial_update", "destroy"):
             return [IsAuthenticatedCRMUser(), IsCEO()]
         return super().get_permissions()
-
-
-class ProductCategoryMasterViewSet(CEOManageCategoryMixin, viewsets.ModelViewSet):
-    queryset = ProductCategory.objects.all().order_by("name")
-    serializer_class = ProductCategoryMasterSerializer
 
 
 class ProductMasterViewSet(MasterDataCreateMixin, viewsets.ModelViewSet):

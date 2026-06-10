@@ -206,14 +206,6 @@ class LeadItemTestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_salesperson_cannot_create_master_category(self):
-        response = self.client.post(
-            "/api/v1/leads/masters/categories/",
-            {"name": "New Category"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     def test_products_filtered_by_category(self):
         self.client.force_authenticate(user=self.ceo)
         response = self.client.get(

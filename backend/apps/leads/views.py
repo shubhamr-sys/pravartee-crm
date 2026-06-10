@@ -1,12 +1,14 @@
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import generics, viewsets
+from rest_framework import generics, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.access import leads_for_user
+from apps.accounts.access import leads_for_user, user_can_access_lead
 from apps.accounts.permissions import CanAccessLead, IsAuthenticatedCRMUser
+from apps.activities.services import log_price_requested
 
 from .categories import PRODUCT_CATEGORIES
 from .metrics import get_lead_list_metrics
@@ -102,3 +104,17 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.user.is_salesperson:
             raise PermissionDenied("Salespersons cannot delete leads.")
         instance.delete()
+
+
+class LeadAskForPriceView(APIView):
+    permission_classes = [IsAuthenticatedCRMUser]
+
+    def post(self, request, pk):
+        lead = get_object_or_404(Lead.objects.all(), pk=pk)
+        if not user_can_access_lead(request.user, lead):
+            raise PermissionDenied("You do not have permission to access this lead.")
+        log_price_requested(lead, request.user)
+        return Response(
+            {"message": "Price request recorded."},
+            status=status.HTTP_200_OK,
+        )

@@ -143,3 +143,12 @@ def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
             ActivityType.LEAD_UPDATED,
             comments="Lead details updated.",
         )
+
+
+def log_price_requested(lead: Lead, user: User | None) -> LeadActivity:
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.PRICE_REQUESTED,
+        comments="Asked for price.",
+    )

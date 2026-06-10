@@ -32,6 +32,8 @@ export interface PaginatedAttendanceResponse {
 export interface AttendanceListParams {
   page?: number;
   attendance_date?: string;
+  attendance_date__gte?: string;
+  attendance_date__lte?: string;
   user?: string;
   user__role?: string;
   status?: string;
@@ -76,7 +78,7 @@ export interface SalesHeadAttendanceMetrics {
   absent_employees?: AttendanceEmployeeSummary[];
 }
 
-export type AttendanceStatusView = "present" | "absent";
+export type AttendanceStatusView = "present" | "absent" | "all";
 
 export interface SalespersonAttendanceMetrics {
   today_status: string;
