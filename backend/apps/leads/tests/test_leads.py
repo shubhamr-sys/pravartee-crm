@@ -1,8 +1,6 @@
 """
 Lead CRUD, filtering, and automatic activity logging tests.
 """
-from decimal import Decimal
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from datetime import timedelta
@@ -13,7 +11,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.choices import UserRole
 from apps.activities.models import ActivityType, LeadActivity
-from apps.leads.models import Lead, LeadStage, ProductCategory
+from apps.leads.models import Brand, Lead, LeadStage, Product, ProductCategory, ProductModel
 
 User = get_user_model()
 
@@ -45,11 +43,28 @@ class LeadManagementTestCase(TestCase):
             role=UserRole.SALESPERSON,
         )
 
+        cls.category_it = ProductCategory.objects.get(name="IT")
+        cls.product = Product.objects.get(category=cls.category_it, name="Laptop")
+        cls.brand = Brand.objects.get(product=cls.product, name="Dell")
+        cls.product_model = ProductModel.objects.get(brand=cls.brand, name="Latitude 5540")
+
     def setUp(self):
         self.client = APIClient()
 
     def _auth(self, user):
         self.client.force_authenticate(user=user)
+
+    def _item_payload(self, **overrides):
+        data = {
+            "category": str(self.category_it.id),
+            "product": str(self.product.id),
+            "brand": str(self.brand.id),
+            "model": str(self.product_model.id),
+            "quantity": 1,
+            "uom": "NOS",
+        }
+        data.update(overrides)
+        return data
 
     def test_create_lead_logs_activity(self):
         self._auth(self.salesperson)
@@ -58,9 +73,8 @@ class LeadManagementTestCase(TestCase):
             {
                 "customer_name": "Acme Corp",
                 "company_name": "Acme Industries",
-                "category": str(self.category.id),
                 "stage": str(self.stage_new.id),
-                "estimated_value": "50000.00",
+                "items": [self._item_payload()],
             },
             format="json",
         )
@@ -198,16 +212,15 @@ class LeadManagementTestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_negative_estimated_value_rejected(self):
+    def test_negative_item_quantity_rejected(self):
         self._auth(self.salesperson)
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Bad Value",
+                "customer_name": "Bad Qty",
                 "company_name": "Bad Co",
-                "estimated_value": "-100.00",
-                "category": str(self.category.id),
                 "stage": str(self.stage_new.id),
+                "items": [self._item_payload(quantity=-1)],
             },
             format="json",
         )
@@ -306,8 +319,7 @@ class LeadManagementTestCase(TestCase):
             category=self.category,
             stage=self.stage_new,
             assigned_to=self.salesperson,
-            estimated_value=Decimal("25000.00"),
-            next_followup_date=timezone.localdate() - timedelta(days=1),
+                        next_followup_date=timezone.localdate() - timedelta(days=1),
         )
         Lead.objects.create(
             customer_name="Future Lead",
@@ -329,15 +341,13 @@ class LeadManagementTestCase(TestCase):
             category=self.category,
             stage=self.stage_new,
             assigned_to=self.ceo,
-            estimated_value=Decimal("100000.00"),
-        )
+                    )
         Lead.objects.create(
             customer_name="Sales Lead",
             category=self.category,
             stage=self.stage_new,
             assigned_to=self.salesperson,
-            estimated_value=Decimal("10000.00"),
-        )
+                    )
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/leads/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -379,7 +389,6 @@ class LeadManagementTestCase(TestCase):
             category=self.category,
             stage=self.stage_new,
             assigned_to=self.salesperson,
-            lead_source="REFERRAL",
         )
         self._auth(self.salesperson)
         response = self.client.get(f"/api/v1/leads/{lead.id}/")
@@ -422,8 +431,7 @@ class LeadManagementTestCase(TestCase):
             stage=self.stage_new,
             assigned_to=self.salesperson,
             next_followup_date=timezone.localdate(),
-            estimated_value=Decimal("10000.00"),
-        )
+                    )
         self._auth(self.ceo)
         response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

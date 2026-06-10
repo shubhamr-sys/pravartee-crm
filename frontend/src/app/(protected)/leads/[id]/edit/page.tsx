@@ -28,23 +28,11 @@ import type {
 } from "@/types/lead";
 import { emptyLeadItem, leadItemToFormData } from "@/types/lead";
 
-function leadToFormData(lead: Lead, defaultCategory: string): LeadFormData {
+function leadToFormData(lead: Lead): LeadFormData {
   const items =
     lead.items && lead.items.length > 0
       ? lead.items.map(leadItemToFormData)
-      : [
-          emptyLeadItem(lead.category || defaultCategory),
-        ];
-
-  if (items.length === 1 && !items[0].product && lead.category_name) {
-    items[0] = {
-      ...items[0],
-      category: lead.category || items[0].category,
-      product: lead.items?.[0]?.product || "Legacy Product",
-      unit_price: String(lead.estimated_value),
-      quantity: "1",
-    };
-  }
+      : [emptyLeadItem(lead.category || "")];
 
   return {
     customer_name: lead.customer_name,
@@ -52,13 +40,12 @@ function leadToFormData(lead: Lead, defaultCategory: string): LeadFormData {
     contact_person: lead.contact_person,
     phone: lead.phone,
     email: lead.email,
-    estimated_value: String(lead.estimated_value),
     category: lead.category || "",
     stage: lead.stage,
     next_followup_date: lead.next_followup_date || "",
     notes: lead.notes,
     assigned_to: lead.assigned_to || "",
-    lead_source: lead.lead_source,
+    record_type: lead.record_type || "LEAD",
     items,
   };
 }
@@ -90,7 +77,7 @@ export default function EditLeadPage() {
       ]);
       setLead(leadData);
       setInitialValues(
-        leadToFormData(leadData, categoryData[0]?.id || ""),
+        leadToFormData(leadData),
       );
       setStages(stageData);
       setCategories(categoryData);
@@ -120,6 +107,7 @@ export default function EditLeadPage() {
     setSubmitError(null);
 
     const payload = toLeadApiPayload({
+      record_type: values.record_type,
       stage: values.stage,
       next_followup_date: values.next_followup_date || undefined,
       notes: values.notes,

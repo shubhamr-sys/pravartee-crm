@@ -1,7 +1,6 @@
 """
 Product category migration tests.
 """
-from decimal import Decimal
 from importlib import import_module
 
 from django.contrib.auth import get_user_model
@@ -10,7 +9,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.choices import UserRole
 from apps.leads.categories import LEGACY_CATEGORY_MAPPING, PRODUCT_CATEGORIES
-from apps.leads.models import Lead, LeadStage, ProductCategory
+from apps.leads.models import Brand, Lead, LeadStage, Product, ProductCategory, ProductModel
 
 User = get_user_model()
 category_migration = import_module("apps.leads.migrations.0003_update_product_categories")
@@ -18,6 +17,9 @@ category_migration = import_module("apps.leads.migrations.0003_update_product_ca
 
 class ProductCategoryMigrationTestCase(TransactionTestCase):
     def test_migration_maps_legacy_categories(self):
+        ProductModel.objects.all().delete()
+        Brand.objects.all().delete()
+        Product.objects.all().delete()
         ProductCategory.objects.all().delete()
         stage = LeadStage.objects.get(name="New")
         legacy_categories = {}
@@ -30,7 +32,6 @@ class ProductCategoryMigrationTestCase(TransactionTestCase):
                 customer_name=f"Lead {old_name}",
                 category=legacy_categories[old_name],
                 stage=stage,
-                estimated_value=Decimal("1000.00"),
             )
             leads_before[old_name] = lead
 

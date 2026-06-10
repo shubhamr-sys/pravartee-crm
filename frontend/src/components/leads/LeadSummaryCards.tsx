@@ -1,6 +1,5 @@
 "use client";
 
-import { formatCurrency } from "@/lib/format";
 import type { LeadListSummary } from "@/types/lead";
 
 interface LeadSummaryCardsProps {
@@ -22,9 +21,10 @@ export default function LeadSummaryCards({ summary }: LeadSummaryCardsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard label="Total Leads" value={summary.total_leads} />
+      <SummaryCard label="Pipeline Leads" value={summary.pipeline_leads} />
       <SummaryCard
-        label="Pipeline Value"
-        value={formatCurrency(summary.pipeline_value)}
+        label="Product Quantity in Pipeline"
+        value={summary.pipeline_product_quantity}
       />
       <SummaryCard label="Upcoming Follow-ups" value={summary.upcoming_followups} />
       <SummaryCard

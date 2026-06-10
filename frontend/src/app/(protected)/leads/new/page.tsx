@@ -29,13 +29,12 @@ const emptyForm: LeadFormData = {
   contact_person: "",
   phone: "",
   email: "",
-  estimated_value: "0",
   category: "",
   stage: "",
   next_followup_date: "",
   notes: "",
   assigned_to: "",
-  lead_source: "OTHER",
+  record_type: "LEAD",
   items: [emptyLeadItem()],
 };
 
@@ -65,13 +64,11 @@ export default function NewLeadPage() {
 
         const defaultStage =
           stageData.find((item) => item.name === "New")?.id || stageData[0]?.id || "";
-        const defaultCategory = categoryData[0]?.id || "";
 
         setInitialValues((current) => ({
           ...current,
           stage: defaultStage,
-          category: defaultCategory,
-          items: [emptyLeadItem(defaultCategory)],
+          items: [emptyLeadItem()],
         }));
 
         if (canAssign) {
@@ -92,10 +89,7 @@ export default function NewLeadPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const payload = toLeadApiPayload({
-        ...values,
-        lead_source: values.lead_source || "OTHER",
-      });
+      const payload = toLeadApiPayload(values);
       if (!canAssign) {
         delete payload.assigned_to;
       } else if (!payload.assigned_to) {

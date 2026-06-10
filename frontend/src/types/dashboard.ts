@@ -10,24 +10,21 @@ export interface StageCount {
 export interface ProductMetricRow {
   product: string;
   quantity: number;
-  revenue: string | number;
 }
 
-export interface CategoryRevenueRow {
+export interface CategoryQuantityRow {
   category: string;
-  revenue: string | number;
   quantity: number;
 }
 
 export interface DashboardProductMetrics {
-  pipeline_value: string | number;
   total_product_quantity: number;
   top_products: ProductMetricRow[];
-  category_revenue: CategoryRevenueRow[];
+  category_quantity: CategoryQuantityRow[];
 }
 
 export interface DashboardSummary {
-  pipeline_value: string | number;
+  pipeline_leads: number;
   total_active_leads: number;
   stale_leads_count: number;
   stale_lead_threshold_days?: number;

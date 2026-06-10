@@ -54,9 +54,9 @@ export default function DashboardPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm text-slate-500">Total Pipeline Value</p>
+              <p className="text-sm text-slate-500">Pipeline Leads</p>
               <p className="mt-2 text-2xl font-semibold">
-                {formatCurrency(summary.pipeline_value)}
+                {summary.pipeline_leads}
               </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -92,7 +92,6 @@ export default function DashboardPage() {
                         <tr>
                           <th className="px-2 py-2 font-medium">Product</th>
                           <th className="px-2 py-2 font-medium">Qty</th>
-                          <th className="px-2 py-2 font-medium">Revenue</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -100,7 +99,6 @@ export default function DashboardPage() {
                           <tr key={row.product} className="border-b border-slate-100">
                             <td className="px-2 py-2">{row.product}</td>
                             <td className="px-2 py-2">{row.quantity}</td>
-                            <td className="px-2 py-2">{formatCurrency(row.revenue)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -111,10 +109,10 @@ export default function DashboardPage() {
 
               <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Category-wise Revenue
+                  Category-wise Quantity
                 </h2>
-                {summary.products.category_revenue.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">No category revenue data.</p>
+                {summary.products.category_quantity.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">No category quantity data.</p>
                 ) : (
                   <div className="mt-4 overflow-x-auto">
                     <table className="min-w-full text-left text-sm">
@@ -122,15 +120,13 @@ export default function DashboardPage() {
                         <tr>
                           <th className="px-2 py-2 font-medium">Category</th>
                           <th className="px-2 py-2 font-medium">Qty</th>
-                          <th className="px-2 py-2 font-medium">Revenue</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {summary.products.category_revenue.map((row) => (
+                        {summary.products.category_quantity.map((row) => (
                           <tr key={row.category} className="border-b border-slate-100">
                             <td className="px-2 py-2">{row.category}</td>
                             <td className="px-2 py-2">{row.quantity}</td>
-                            <td className="px-2 py-2">{formatCurrency(row.revenue)}</td>
                           </tr>
                         ))}
                       </tbody>

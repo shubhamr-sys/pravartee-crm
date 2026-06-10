@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import FollowupBadge from "@/components/leads/FollowupBadge";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import type { Lead } from "@/types/lead";
 
 interface LeadTableProps {
@@ -23,7 +23,7 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
               <th className="px-4 py-3 text-left font-medium text-slate-600">Stage</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Category</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Assigned To</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Value</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Products</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Follow-up</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
             </tr>
@@ -53,8 +53,8 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
                 <td className="px-4 py-3 text-slate-700">
                   {lead.assigned_to_name || "Unassigned"}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {formatCurrency(lead.estimated_value)}
+                <td className="px-4 py-3 text-slate-700">
+                  {lead.items?.length ?? 0} line{(lead.items?.length ?? 0) === 1 ? "" : "s"}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">

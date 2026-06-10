@@ -56,7 +56,6 @@ class LeadListCreateView(generics.ListCreateAPIView):
     ordering_fields = [
         "customer_name",
         "company_name",
-        "estimated_value",
         "next_followup_date",
         "created_at",
         "updated_at",
@@ -67,6 +66,9 @@ class LeadListCreateView(generics.ListCreateAPIView):
         return leads_for_user(self.request.user).prefetch_related(
             "items",
             "items__category",
+            "items__product",
+            "items__brand",
+            "items__product_model",
         )
 
     def perform_create(self, serializer):
@@ -88,7 +90,13 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
             "assigned_to",
             "category",
             "stage",
-        ).prefetch_related("items", "items__category")
+        ).prefetch_related(
+            "items",
+            "items__category",
+            "items__product",
+            "items__brand",
+            "items__product_model",
+        )
 
     def perform_destroy(self, instance):
         if self.request.user.is_salesperson:

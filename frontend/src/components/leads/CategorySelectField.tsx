@@ -1,6 +1,7 @@
 "use client";
 
 import CategoryHelpContent from "@/components/leads/CategoryHelpContent";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import Tooltip from "@/components/ui/Tooltip";
 import { getCategoryDescriptionById } from "@/lib/productCategories";
 import type { ProductCategory } from "@/types/lead";
@@ -34,36 +35,36 @@ export default function CategorySelectField({
     ? getCategoryDescriptionById(value, categories)
     : undefined;
 
+  const options = categories.map((category) => ({
+    value: category.id,
+    label: category.name,
+  }));
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-1.5">
-        <label htmlFor={id} className={labelClassName}>
+        <span className={labelClassName}>
           {label}
           {required ? " *" : ""}
-        </label>
+        </span>
         <Tooltip
           ariaLabel="Product category descriptions"
           content={<CategoryHelpContent />}
           placement="bottom"
         />
       </div>
-      <select
+      <SearchableSelect
         id={id}
+        label=""
+        labelClassName="sr-only"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={selectClassName}
+        onChange={onChange}
+        options={options}
         required={required}
-        aria-describedby={selectedDescription ? `${id}-helper` : undefined}
-      >
-        {emptyOption && (
-          <option value={emptyOption.value}>{emptyOption.label}</option>
-        )}
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
-        ))}
-      </select>
+        emptyLabel={emptyOption?.label ?? "Select category"}
+        placeholder="Search categories..."
+        inputClassName={selectClassName}
+      />
       {selectedDescription && (
         <p
           id={`${id}-helper`}

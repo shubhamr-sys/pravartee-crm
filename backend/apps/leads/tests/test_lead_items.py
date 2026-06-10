@@ -1,15 +1,13 @@
 """
-Lead item CRUD, totals, and product analytics tests.
+Lead item CRUD, master hierarchy validation, and product analytics tests.
 """
-from decimal import Decimal
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.accounts.choices import UserRole
-from apps.leads.models import Lead, LeadItem, LeadStage, ProductCategory
+from apps.leads.models import Brand, Lead, LeadStage, Product, ProductCategory, ProductModel
 
 User = get_user_model()
 
@@ -22,11 +20,24 @@ class LeadItemTestCase(TestCase):
         cls.stage_new = LeadStage.objects.get(name="New")
         cls.stage_won = LeadStage.objects.get(name="Won")
 
+        cls.product = Product.objects.get(category=cls.category_it, name="Laptop")
+        cls.brand = Brand.objects.get(product=cls.product, name="Dell")
+        cls.product_model = ProductModel.objects.get(
+            brand=cls.brand,
+            name="Latitude 5540",
+        )
+
         cls.ceo = User.objects.create_user(
             username="ceo_items",
             email="ceo_items@test.com",
             password="pass12345",
             role=UserRole.CEO,
+        )
+        cls.sales_head = User.objects.create_user(
+            username="head_items",
+            email="head_items@test.com",
+            password="pass12345",
+            role=UserRole.SALES_HEAD,
         )
         cls.salesperson = User.objects.create_user(
             username="sales_items",
@@ -42,139 +53,77 @@ class LeadItemTestCase(TestCase):
     def _item_payload(self, **overrides):
         data = {
             "category": str(self.category_it.id),
-            "product": "Dell Laptop",
-            "brand": "Dell",
-            "model": "Latitude 5540",
+            "product": str(self.product.id),
+            "brand": str(self.brand.id),
+            "model": str(self.product_model.id),
             "quantity": 2,
-            "unit_price": "75000.00",
-            "specification": "16GB RAM, 512GB SSD",
             "uom": "NOS",
+            "specification": "16GB RAM, 512GB SSD",
             "remarks": "Include docking stations",
         }
         data.update(overrides)
         return data
 
-    def test_create_lead_with_items_calculates_estimated_value(self):
+    def test_create_lead_with_items(self):
         response = self.client.post(
             "/api/v1/leads/",
             {
                 "customer_name": "Acme Corp",
                 "company_name": "Acme Industries",
                 "stage": str(self.stage_new.id),
-                "items": [
-                    self._item_payload(),
-                    self._item_payload(
-                        product="HP Printer",
-                        brand="HP",
-                        model="LaserJet",
-                        quantity=1,
-                        unit_price="25000.00",
-                        category=str(self.category_it.id),
-                    ),
-                ],
+                "items": [self._item_payload()],
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(response.data["items"]), 2)
-        self.assertEqual(Decimal(response.data["estimated_value"]), Decimal("175000.00"))
-        self.assertEqual(response.data["items"][0]["total_price"], "150000.00")
-        self.assertEqual(response.data["items"][1]["total_price"], "25000.00")
+        self.assertEqual(len(response.data["items"]), 1)
+        self.assertEqual(response.data["items"][0]["product_name"], "Laptop")
+        self.assertEqual(response.data["items"][0]["brand_name"], "Dell")
+        self.assertEqual(response.data["items"][0]["model_name"], "Latitude 5540")
 
         lead = Lead.objects.get(pk=response.data["id"])
-        self.assertEqual(lead.items.count(), 2)
-        self.assertEqual(lead.estimated_value, Decimal("175000.00"))
-
-    def test_update_lead_replaces_items(self):
-        lead = Lead.objects.create(
-            customer_name="Replace Test",
-            company_name="Replace Co",
-            category=self.category_it,
-            stage=self.stage_new,
-            assigned_to=self.salesperson,
-        )
-        LeadItem.objects.create(
-            lead=lead,
-            category=self.category_it,
-            product="Old Product",
-            quantity=1,
-            unit_price=Decimal("1000.00"),
-        )
-        lead.estimated_value = Decimal("1000.00")
-        lead.save()
-
-        response = self.client.patch(
-            f"/api/v1/leads/{lead.id}/",
-            {
-                "items": [
-                    self._item_payload(quantity=3, unit_price="10000.00"),
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(lead.items.count(), 1)
-        lead.refresh_from_db()
-        self.assertEqual(lead.estimated_value, Decimal("30000.00"))
-        self.assertEqual(lead.items.first().product, "Dell Laptop")
 
-    def test_create_lead_item_includes_uom_and_remarks(self):
+    def test_create_lead_with_product_only_item(self):
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "UOM Test",
-                "company_name": "UOM Co",
+                "customer_name": "Minimal Products",
+                "company_name": "Minimal Co",
                 "stage": str(self.stage_new.id),
                 "items": [
-                    self._item_payload(uom="PROJECT", remarks="Turnkey deployment scope"),
+                    {
+                        "category": str(self.category_it.id),
+                        "product": str(self.product.id),
+                        "quantity": 3,
+                        "uom": "NOS",
+                    },
                 ],
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         item = response.data["items"][0]
-        self.assertEqual(item["uom"], "PROJECT")
-        self.assertEqual(item["remarks"], "Turnkey deployment scope")
+        self.assertEqual(item["product_name"], "Laptop")
+        self.assertEqual(item["brand_name"], "")
+        self.assertEqual(item["model_name"], "")
 
-    def test_line_total_is_quantity_times_unit_price(self):
-        item = LeadItem(
-            lead=Lead.objects.create(
-                customer_name="Line Total",
-                company_name="Line Co",
-                category=self.category_it,
-                stage=self.stage_new,
-                assigned_to=self.salesperson,
-            ),
-            category=self.category_it,
-            product="Server",
-            quantity=4,
-            unit_price=Decimal("12500.50"),
+    def test_hierarchy_validation_rejects_mismatched_brand(self):
+        other_product = Product.objects.get(
+            category=self.category_solution,
+            name="CCTV System",
         )
-        item.save()
-        self.assertEqual(item.total_price, Decimal("50002.00"))
+        other_brand = Brand.objects.get(product=other_product, name="Hikvision")
 
-    def test_legacy_create_with_category_only_still_works(self):
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Legacy Lead",
-                "company_name": "Legacy Co",
-                "category": str(self.category_it.id),
+                "customer_name": "Invalid",
+                "company_name": "Invalid Co",
                 "stage": str(self.stage_new.id),
-                "estimated_value": "42000.00",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Decimal(response.data["estimated_value"]), Decimal("42000.00"))
-
-    def test_create_requires_items_or_category(self):
-        response = self.client.post(
-            "/api/v1/leads/",
-            {
-                "customer_name": "No Products",
-                "company_name": "No Products Co",
-                "stage": str(self.stage_new.id),
+                "items": [
+                    self._item_payload(brand=str(other_brand.id)),
+                ],
             },
             format="json",
         )
@@ -188,56 +137,89 @@ class LeadItemTestCase(TestCase):
             stage=self.stage_new,
             assigned_to=self.salesperson,
         )
+        from apps.leads.models import LeadItem
+
         LeadItem.objects.create(
             lead=lead,
             category=self.category_it,
-            product="Cisco Switch",
-            brand="Cisco",
+            product=self.product,
+            brand=self.brand,
+            product_model=self.product_model,
             quantity=5,
-            unit_price=Decimal("20000.00"),
-        )
-        sync_lead = Lead.objects.get(pk=lead.pk)
-        from apps.leads.lead_item_services import sync_lead_from_items
-
-        sync_lead_from_items(sync_lead)
-
-        self.client.force_authenticate(user=self.ceo)
-        response = self.client.get("/api/v1/dashboard/summary/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        products = response.data["products"]
-        self.assertEqual(products["total_product_quantity"], 5)
-        self.assertEqual(Decimal(products["pipeline_value"]), Decimal("100000.00"))
-        self.assertEqual(len(products["top_products"]), 1)
-        self.assertEqual(products["top_products"][0]["product"], "Cisco Switch")
-
-    def test_reports_include_product_metrics(self):
-        lead = Lead.objects.create(
-            customer_name="Won Products",
-            company_name="Won Co",
-            category=self.category_solution,
-            stage=self.stage_won,
-            assigned_to=self.salesperson,
-        )
-        LeadItem.objects.create(
-            lead=lead,
-            category=self.category_solution,
-            product="CCTV Camera",
-            brand="Hikvision",
-            quantity=10,
-            unit_price=Decimal("5000.00"),
         )
         from apps.leads.lead_item_services import sync_lead_from_items
 
         sync_lead_from_items(lead)
 
         self.client.force_authenticate(user=self.ceo)
-        response = self.client.get("/api/v1/reports/sales/")
+        response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         products = response.data["products"]
-        self.assertIn("quantity_by_product", products)
-        self.assertIn("revenue_by_product", products)
-        self.assertIn("revenue_by_category", products)
-        self.assertIn("revenue_by_brand", products)
-        self.assertIn("top_selling_products", products)
-        self.assertEqual(len(products["top_selling_products"]), 1)
-        self.assertEqual(products["top_selling_products"][0]["product"], "CCTV Camera")
+        self.assertEqual(products["total_product_quantity"], 5)
+
+    def test_ceo_can_create_master_product(self):
+        self.client.force_authenticate(user=self.ceo)
+        response = self.client.post(
+            "/api/v1/leads/masters/products/",
+            {
+                "category": str(self.category_it.id),
+                "name": "New Product",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_salesperson_can_create_master_product(self):
+        response = self.client.post(
+            "/api/v1/leads/masters/products/",
+            {
+                "category": str(self.category_it.id),
+                "name": "Sales Product",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_sales_head_can_create_master_brand(self):
+        self.client.force_authenticate(user=self.sales_head)
+        response = self.client.post(
+            "/api/v1/leads/masters/brands/",
+            {
+                "product": str(self.product.id),
+                "name": "Lenovo",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_salesperson_cannot_delete_master_product(self):
+        response = self.client.delete(
+            f"/api/v1/leads/masters/products/{self.product.id}/",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_salesperson_cannot_update_master_product(self):
+        response = self.client.patch(
+            f"/api/v1/leads/masters/products/{self.product.id}/",
+            {"name": "Renamed Laptop"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_salesperson_cannot_create_master_category(self):
+        response = self.client.post(
+            "/api/v1/leads/masters/categories/",
+            {"name": "New Category"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_products_filtered_by_category(self):
+        self.client.force_authenticate(user=self.ceo)
+        response = self.client.get(
+            "/api/v1/leads/masters/products/",
+            {"category": str(self.category_it.id)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [item["name"] for item in response.data["results"]]
+        self.assertIn("Laptop", names)

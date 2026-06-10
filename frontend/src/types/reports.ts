@@ -12,21 +12,20 @@ export interface SalesPerformanceSummary {
   won_deals: number;
   lost_deals: number;
   win_rate: number;
-  pipeline_value: string;
-  revenue: string;
-  average_deal_size: string;
+  pipeline_product_quantity: number;
+  won_product_quantity: number;
+  average_products_per_won_deal: number;
 }
 
 export interface PipelineStageRow {
   stage: string;
   count: number;
-  value: string;
 }
 
 export interface TopCustomerRow {
   customer: string;
   company: string;
-  value: string;
+  product_quantity: number;
   stage: string;
 }
 
@@ -36,7 +35,7 @@ export interface SalespersonPerformanceRow {
   leads_managed: number;
   won_deals: number;
   lost_deals: number;
-  pipeline_value: string;
+  pipeline_product_quantity: number;
   conversion_rate: number;
   win_rate?: number;
 }
@@ -51,29 +50,25 @@ export interface ProductReportRow {
   category?: string;
   brand?: string;
   quantity: number;
-  revenue: string;
 }
 
 export interface CategoryReportRow {
   category: string;
   quantity: number;
-  revenue: string;
 }
 
 export interface BrandReportRow {
   brand: string;
   quantity: number;
-  revenue: string;
 }
 
 export interface ProductReportMetrics {
   quantity_by_product: ProductReportRow[];
-  revenue_by_product: ProductReportRow[];
-  revenue_by_category: CategoryReportRow[];
-  revenue_by_brand: BrandReportRow[];
+  quantity_by_category: CategoryReportRow[];
+  quantity_by_brand: BrandReportRow[];
   top_selling_products: ProductReportRow[];
   pipeline_product_quantity: number;
-  won_product_revenue: string;
+  won_product_quantity: number;
 }
 
 export interface SalesMBRReport {

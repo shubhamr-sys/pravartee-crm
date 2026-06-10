@@ -65,9 +65,12 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
         ("Active Pipeline Leads", summary["active_pipeline_leads"]),
         ("Won Deals", summary["won_deals"]),
         ("Lost Deals", summary["lost_deals"]),
-        ("Pipeline Value", float(summary["pipeline_value"])),
-        ("Revenue", float(summary["revenue"])),
-        ("Average Deal Size", float(summary["average_deal_size"])),
+        ("Pipeline Product Quantity", summary["pipeline_product_quantity"]),
+        ("Won Product Quantity", summary["won_product_quantity"]),
+        (
+            "Average Products per Won Deal",
+            summary.get("average_products_per_won_deal", 0),
+        ),
         ("Win Rate (%)", summary.get("win_rate", 0)),
     ]
     for label, value in summary_rows:
@@ -81,14 +84,13 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
         [
             item["stage"],
             item["count"],
-            float(item["value"]),
         ]
         for item in report["pipeline_by_stage"]
     ]
     row = _write_table(
         ws,
         row,
-        ["Stage", "Count", "Value"],
+        ["Stage", "Count"],
         stage_data,
     )
 
@@ -97,7 +99,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
         [
             item["customer"],
             item["company"],
-            float(item["value"]),
+            item["product_quantity"],
             item["stage"],
         ]
         for item in report["top_customers"]
@@ -105,7 +107,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
     row = _write_table(
         ws,
         row,
-        ["Customer", "Company", "Value", "Stage"],
+        ["Customer", "Company", "Product Quantity", "Stage"],
         customer_data,
     )
 
@@ -116,7 +118,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
             item["leads_managed"],
             item["won_deals"],
             item["lost_deals"],
-            float(item["pipeline_value"]),
+            item["pipeline_product_quantity"],
             item.get("win_rate", item["conversion_rate"]),
         ]
         for item in report["salesperson_performance"]
@@ -129,7 +131,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
             "Leads Managed",
             "Won Deals",
             "Lost Deals",
-            "Pipeline Value",
+            "Pipeline Product Quantity",
             "Win Rate (%)",
         ],
         sp_data,
@@ -139,56 +141,39 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
     if products:
         row = _write_section_title(ws, row, "Quantity by Product")
         qty_data = [
-            [item["product"], item["quantity"], float(item["revenue"])]
+            [item["product"], item["category"], item["brand"], item["quantity"]]
             for item in products.get("quantity_by_product", [])
         ]
-        row = _write_table(ws, row, ["Product", "Quantity", "Revenue"], qty_data)
-
-        row = _write_section_title(ws, row, "Revenue by Product")
-        rev_product_data = [
-            [item["product"], item["category"], float(item["revenue"])]
-            for item in products.get("revenue_by_product", [])
-        ]
         row = _write_table(
             ws,
             row,
-            ["Product", "Category", "Revenue"],
-            rev_product_data,
+            ["Product", "Category", "Brand", "Quantity"],
+            qty_data,
         )
 
-        row = _write_section_title(ws, row, "Revenue by Category")
-        rev_cat_data = [
-            [item["category"], item["quantity"], float(item["revenue"])]
-            for item in products.get("revenue_by_category", [])
+        row = _write_section_title(ws, row, "Quantity by Category")
+        cat_data = [
+            [item["category"], item["quantity"]]
+            for item in products.get("quantity_by_category", [])
         ]
-        row = _write_table(
-            ws,
-            row,
-            ["Category", "Quantity", "Revenue"],
-            rev_cat_data,
-        )
+        row = _write_table(ws, row, ["Category", "Quantity"], cat_data)
 
-        row = _write_section_title(ws, row, "Revenue by Brand")
-        rev_brand_data = [
-            [item["brand"], item["quantity"], float(item["revenue"])]
-            for item in products.get("revenue_by_brand", [])
+        row = _write_section_title(ws, row, "Quantity by Brand")
+        brand_data = [
+            [item["brand"], item["quantity"]]
+            for item in products.get("quantity_by_brand", [])
         ]
-        row = _write_table(
-            ws,
-            row,
-            ["Brand", "Quantity", "Revenue"],
-            rev_brand_data,
-        )
+        row = _write_table(ws, row, ["Brand", "Quantity"], brand_data)
 
         row = _write_section_title(ws, row, "Top Selling Products")
         top_data = [
-            [item["product"], item["brand"], item["quantity"], float(item["revenue"])]
+            [item["product"], item["brand"], item["quantity"]]
             for item in products.get("top_selling_products", [])
         ]
         _write_table(
             ws,
             row,
-            ["Product", "Brand", "Quantity", "Revenue"],
+            ["Product", "Brand", "Quantity"],
             top_data,
         )
 

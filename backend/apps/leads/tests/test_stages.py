@@ -1,7 +1,6 @@
 """
 Lead stage migration and pipeline stage business rules.
 """
-from decimal import Decimal
 from importlib import import_module
 
 from django.contrib.auth import get_user_model
@@ -10,7 +9,7 @@ from django.test import TestCase, TransactionTestCase
 from apps.accounts.choices import UserRole
 from apps.dashboard.services import get_dashboard_summary
 from apps.leads.metrics import get_lead_list_metrics
-from apps.leads.models import Lead, LeadStage, ProductCategory
+from apps.leads.models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 from apps.leads.stages import ACTIVE_PIPELINE_STAGES, ALL_STAGES_ORDER
 
 User = get_user_model()
@@ -38,7 +37,6 @@ class LeadStageMigrationTestCase(TransactionTestCase):
             customer_name="Legacy Lead",
             category=category,
             stage=stages["Negotiation"],
-            estimated_value=Decimal("1000.00"),
         )
 
         stage_migration.forwards(apps=self._apps(), schema_editor=None)
@@ -56,7 +54,7 @@ class LeadStageMigrationTestCase(TransactionTestCase):
         return apps
 
 
-class PipelineValueTestCase(TestCase):
+class PipelineMetricsTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.create(name="Pipeline Cat")
@@ -68,26 +66,37 @@ class PipelineValueTestCase(TestCase):
         )
         cls.stage_new = LeadStage.objects.get(name="New")
         cls.stage_won = LeadStage.objects.get(name="Won")
+        cls.category_it = ProductCategory.objects.get(name="IT")
+        cls.product = Product.objects.get(category=cls.category_it, name="Laptop")
+        cls.brand = Brand.objects.get(product=cls.product, name="Dell")
+        cls.product_model = ProductModel.objects.get(brand=cls.brand, name="Latitude 5540")
 
-    def test_pipeline_value_excludes_closed_stages(self):
-        Lead.objects.create(
+    def test_pipeline_metrics_excludes_closed_stages(self):
+        open_lead = Lead.objects.create(
             customer_name="Open Lead",
             category=self.category,
             stage=self.stage_new,
-            estimated_value=Decimal("100000.00"),
+        )
+        LeadItem.objects.create(
+            lead=open_lead,
+            category=self.category_it,
+            product=self.product,
+            brand=self.brand,
+            product_model=self.product_model,
+            quantity=7,
         )
         Lead.objects.create(
             customer_name="Won Lead",
             category=self.category,
             stage=self.stage_won,
-            estimated_value=Decimal("50000.00"),
         )
 
         summary = get_dashboard_summary(user=self.ceo)
-        self.assertEqual(summary["pipeline_value"], Decimal("100000.00"))
+        self.assertEqual(summary["pipeline_leads"], 1)
 
         metrics = get_lead_list_metrics(self.ceo)
-        self.assertEqual(metrics["pipeline_value"], Decimal("100000.00"))
+        self.assertEqual(metrics["pipeline_leads"], 1)
+        self.assertEqual(metrics["pipeline_product_quantity"], 7)
 
     def test_active_pipeline_stage_names(self):
         self.assertEqual(

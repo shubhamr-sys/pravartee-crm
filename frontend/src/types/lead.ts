@@ -15,11 +15,14 @@ export interface ProductCategory {
   updated_at: string;
 }
 
+export type LeadRecordType = "LEAD" | "VISIT";
+
 export type FollowupStatus = "none" | "overdue" | "due_soon" | "normal";
 
 export interface LeadListSummary {
   total_leads: number;
-  pipeline_value: string | number;
+  pipeline_leads: number;
+  pipeline_product_quantity: number;
   upcoming_followups: number;
   overdue_followups: number;
   due_soon_followups?: number;
@@ -30,12 +33,13 @@ export interface LeadItem {
   category: string;
   category_name: string;
   product: string;
-  brand: string;
-  model: string;
+  product_name: string;
+  brand: string | null;
+  brand_name: string;
+  model: string | null;
+  model_name: string;
   quantity: number;
   uom: string;
-  unit_price: string | number;
-  total_price: string | number;
   specification: string;
   remarks: string;
   created_at: string;
@@ -49,8 +53,7 @@ export interface Lead {
   contact_person: string;
   phone: string;
   email: string;
-  estimated_value: string | number;
-  lead_source: string;
+  record_type: LeadRecordType;
   next_followup_date: string | null;
   followup_status?: FollowupStatus;
   notes: string;
@@ -85,22 +88,6 @@ export interface LeadListParams {
   ordering?: string;
 }
 
-export const LEAD_SOURCE_OPTIONS = [
-  { value: "WEBSITE", label: "Website" },
-  { value: "REFERRAL", label: "Referral" },
-  { value: "TENDER", label: "Tender" },
-  { value: "WHATSAPP", label: "WhatsApp" },
-  { value: "EMAIL", label: "Email" },
-  { value: "COLD_CALL", label: "Cold Call" },
-  { value: "EXISTING_CUSTOMER", label: "Existing Customer" },
-  { value: "WALK_IN", label: "Walk-In" },
-  { value: "OTHER", label: "Other" },
-] as const;
-
-export function getLeadSourceLabel(source: string): string {
-  return LEAD_SOURCE_OPTIONS.find((item) => item.value === source)?.label ?? source;
-}
-
 export interface LeadItemFormData {
   id?: string;
   category: string;
@@ -109,7 +96,6 @@ export interface LeadItemFormData {
   model: string;
   quantity: string;
   uom: string;
-  unit_price: string;
   specification: string;
   remarks: string;
 }
@@ -120,14 +106,17 @@ export interface LeadFormData {
   contact_person: string;
   phone: string;
   email: string;
-  estimated_value: string;
   category: string;
   stage: string;
   next_followup_date?: string;
   notes: string;
   assigned_to?: string;
-  lead_source?: string;
+  record_type?: LeadRecordType;
   items: LeadItemFormData[];
+}
+
+export function getRecordTypeLabel(recordType: LeadRecordType): string {
+  return recordType === "VISIT" ? "Visit" : "Lead";
 }
 
 export function emptyLeadItem(categoryId = ""): LeadItemFormData {
@@ -138,7 +127,6 @@ export function emptyLeadItem(categoryId = ""): LeadItemFormData {
     model: "",
     quantity: "1",
     uom: "NOS",
-    unit_price: "0",
     specification: "",
     remarks: "",
   };
@@ -149,28 +137,13 @@ export function leadItemToFormData(item: LeadItem): LeadItemFormData {
     id: item.id,
     category: item.category,
     product: item.product,
-    brand: item.brand,
-    model: item.model,
+    brand: item.brand || "",
+    model: item.model || "",
     quantity: String(item.quantity),
     uom: item.uom || "NOS",
-    unit_price: String(item.unit_price),
     specification: item.specification,
     remarks: item.remarks || "",
   };
-}
-
-export function calculateLineTotal(quantity: string, unitPrice: string): number {
-  const qty = Number(quantity);
-  const price = Number(unitPrice);
-  if (Number.isNaN(qty) || Number.isNaN(price)) return 0;
-  return Math.round(qty * price * 100) / 100;
-}
-
-export function calculateItemsTotal(items: LeadItemFormData[]): number {
-  return items.reduce(
-    (sum, item) => sum + calculateLineTotal(item.quantity, item.unit_price),
-    0,
-  );
 }
 
 export type AssignableUser = Pick<
@@ -181,25 +154,25 @@ export type AssignableUser = Pick<
 export interface LeadItemPayload {
   category: string;
   product: string;
-  brand?: string;
-  model?: string;
+  brand: string | null;
+  model: string | null;
   quantity: number;
   uom: string;
-  unit_price: string;
   specification?: string;
   remarks?: string;
 }
 
 export function buildItemsPayload(items: LeadItemFormData[]): LeadItemPayload[] {
-  return items.map((item) => ({
-    category: item.category,
-    product: item.product.trim(),
-    brand: item.brand.trim(),
-    model: item.model.trim(),
-    quantity: Number(item.quantity),
-    uom: item.uom || "NOS",
-    unit_price: item.unit_price || "0",
-    specification: item.specification.trim(),
-    remarks: item.remarks.trim(),
-  }));
+  return items
+    .filter((item) => item.category && item.product)
+    .map((item) => ({
+      category: item.category,
+      product: item.product,
+      brand: item.brand || null,
+      model: item.model || null,
+      quantity: Number(item.quantity),
+      uom: item.uom || "NOS",
+      specification: item.specification.trim(),
+      remarks: item.remarks.trim(),
+    }));
 }

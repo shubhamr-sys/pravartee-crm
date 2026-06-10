@@ -1,13 +1,12 @@
 """
-Seed pipeline stages, product categories, and sample lead items.
+Seed pipeline stages, product categories, master hierarchy, and sample leads.
 """
-from decimal import Decimal
-
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from apps.leads.categories import PRODUCT_CATEGORIES, PRODUCT_CATEGORY_DESCRIPTIONS
-from apps.leads.models import Lead, LeadItem, LeadStage, ProductCategory
+from apps.leads.master_seed import seed_product_masters
+from apps.leads.models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 from apps.leads.stages import SEED_STAGES
 
 User = get_user_model()
@@ -19,20 +18,18 @@ SAMPLE_LEAD_ITEMS = [
         "items": [
             {
                 "category": "IT",
-                "product": "Dell Latitude Laptop",
+                "product": "Laptop",
                 "brand": "Dell",
-                "model": "5540",
+                "model": "Latitude 5540",
                 "quantity": 25,
-                "unit_price": Decimal("72000.00"),
                 "specification": "i7, 16GB RAM, 512GB SSD",
             },
             {
                 "category": "IT",
-                "product": "HP Laser Printer",
+                "product": "Printer",
                 "brand": "HP",
-                "model": "M404dn",
+                "model": "LaserJet M404dn",
                 "quantity": 5,
-                "unit_price": Decimal("28000.00"),
                 "specification": "Duplex, network ready",
             },
         ],
@@ -43,36 +40,11 @@ SAMPLE_LEAD_ITEMS = [
         "items": [
             {
                 "category": "Solution",
-                "product": "IP CCTV Camera",
+                "product": "CCTV System",
                 "brand": "Hikvision",
                 "model": "DS-2CD2143G2",
                 "quantity": 40,
-                "unit_price": Decimal("8500.00"),
                 "specification": "4MP, PoE, night vision",
-            },
-            {
-                "category": "Solution",
-                "product": "NVR Recorder",
-                "brand": "Hikvision",
-                "model": "DS-7632NI-K2",
-                "quantity": 2,
-                "unit_price": Decimal("45000.00"),
-                "specification": "32-channel, 4TB included",
-            },
-        ],
-    },
-    {
-        "customer_name": "Apex Manufacturing",
-        "company_name": "Apex Industries",
-        "items": [
-            {
-                "category": "Non-IT",
-                "product": "Industrial UPS",
-                "brand": "APC",
-                "model": "SURT10000XLI",
-                "quantity": 3,
-                "unit_price": Decimal("185000.00"),
-                "specification": "10kVA, rack mount",
             },
         ],
     },
@@ -80,7 +52,7 @@ SAMPLE_LEAD_ITEMS = [
 
 
 class Command(BaseCommand):
-    help = "Seed lead stages, product categories, and sample lead items"
+    help = "Seed lead stages, product categories, masters, and sample lead items"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -111,19 +83,24 @@ class Command(BaseCommand):
             )
             if created:
                 self.stdout.write(self.style.SUCCESS(f"Created category: {name}"))
-            elif category.description != description:
-                self.stdout.write(f"Updated category description: {name}")
 
-        removed, _ = ProductCategory.objects.exclude(
-            name__in=PRODUCT_CATEGORIES,
-        ).delete()
-        if removed:
-            self.stdout.write(f"Removed {removed} legacy categor{'y' if removed == 1 else 'ies'}")
+        master_counts = seed_product_masters()
+        self.stdout.write(
+            f"Product masters — products: {master_counts['products']}, "
+            f"brands: {master_counts['brands']}, models: {master_counts['models']}",
+        )
 
         if options["with_leads"]:
             self._seed_sample_leads()
 
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
+
+    def _resolve_master(self, category_name, product_name, brand_name, model_name):
+        category = ProductCategory.objects.get(name=category_name)
+        product, _ = Product.objects.get_or_create(category=category, name=product_name)
+        brand, _ = Brand.objects.get_or_create(product=product, name=brand_name)
+        model, _ = ProductModel.objects.get_or_create(brand=brand, name=model_name)
+        return category, product, brand, model
 
     def _seed_sample_leads(self):
         stage = LeadStage.objects.filter(name="New").first()
@@ -132,11 +109,8 @@ class Command(BaseCommand):
             return
 
         assignee = User.objects.filter(is_active=True).order_by("date_joined").first()
-        categories = {
-            cat.name: cat for cat in ProductCategory.objects.filter(name__in=PRODUCT_CATEGORIES)
-        }
-
         created_leads = 0
+
         for sample in SAMPLE_LEAD_ITEMS:
             if Lead.objects.filter(
                 customer_name=sample["customer_name"],
@@ -144,28 +118,37 @@ class Command(BaseCommand):
             ).exists():
                 continue
 
-            first_category = categories.get(sample["items"][0]["category"])
-            if not first_category:
-                continue
+            first_item = sample["items"][0]
+            category, _, _, _ = self._resolve_master(
+                first_item["category"],
+                first_item["product"],
+                first_item["brand"],
+                first_item["model"],
+            )
 
             lead = Lead.objects.create(
                 customer_name=sample["customer_name"],
                 company_name=sample["company_name"],
                 stage=stage,
-                category=first_category,
+                category=category,
                 assigned_to=assignee,
             )
+
             for item_data in sample["items"]:
-                category = categories[item_data["category"]]
+                cat, product, brand, model = self._resolve_master(
+                    item_data["category"],
+                    item_data["product"],
+                    item_data["brand"],
+                    item_data["model"],
+                )
                 LeadItem.objects.create(
                     lead=lead,
-                    category=category,
-                    product=item_data["product"],
-                    brand=item_data["brand"],
-                    model=item_data["model"],
+                    category=cat,
+                    product=product,
+                    brand=brand,
+                    product_model=model,
                     quantity=item_data["quantity"],
-                    unit_price=item_data["unit_price"],
-                    specification=item_data["specification"],
+                    specification=item_data.get("specification", ""),
                 )
 
             from apps.leads.lead_item_services import sync_lead_from_items

@@ -1,8 +1,6 @@
 """
 Lead assignment tests for create and update flows.
 """
-from decimal import Decimal
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
@@ -65,7 +63,6 @@ class LeadAssignmentTestCase(TestCase):
             "company_name": "Assignment Co",
             "category": str(self.category.id),
             "stage": str(self.stage.id),
-            "estimated_value": "15000.00",
         }
         payload.update(overrides)
         return payload
@@ -170,7 +167,6 @@ class LeadAssignmentTestCase(TestCase):
         lead = Lead.objects.create(
             customer_name="Reassign Me",
             company_name="Reassign Co",
-            estimated_value=Decimal("1000.00"),
             category=self.category,
             stage=self.stage,
             assigned_to=self.salesperson,
@@ -188,7 +184,6 @@ class LeadAssignmentTestCase(TestCase):
         lead = Lead.objects.create(
             customer_name="Head Reassign",
             company_name="Head Co",
-            estimated_value=Decimal("1000.00"),
             category=self.category,
             stage=self.stage,
             assigned_to=self.salesperson,

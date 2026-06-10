@@ -1,7 +1,12 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from django.urls import path
-
+from .master_views import (
+    BrandMasterViewSet,
+    ProductCategoryMasterViewSet,
+    ProductMasterViewSet,
+    ProductModelMasterViewSet,
+)
 from .views import (
     LeadDetailView,
     LeadListCreateView,
@@ -15,6 +20,10 @@ app_name = "leads"
 router = DefaultRouter()
 router.register("categories", ProductCategoryViewSet, basename="category")
 router.register("stages", LeadStageViewSet, basename="stage")
+router.register("masters/categories", ProductCategoryMasterViewSet, basename="master-category")
+router.register("masters/products", ProductMasterViewSet, basename="master-product")
+router.register("masters/brands", BrandMasterViewSet, basename="master-brand")
+router.register("masters/models", ProductModelMasterViewSet, basename="master-model")
 
 urlpatterns = [
     path("", LeadListCreateView.as_view(), name="lead-list"),

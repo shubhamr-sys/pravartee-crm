@@ -28,8 +28,6 @@ const ORDER_OPTIONS = [
   { value: "-updated_at", label: "Recently updated" },
   { value: "customer_name", label: "Customer A–Z" },
   { value: "-customer_name", label: "Customer Z–A" },
-  { value: "-estimated_value", label: "Value: High to low" },
-  { value: "estimated_value", label: "Value: Low to high" },
   { value: "next_followup_date", label: "Follow-up: Soonest" },
   { value: "-next_followup_date", label: "Follow-up: Latest" },
 ];

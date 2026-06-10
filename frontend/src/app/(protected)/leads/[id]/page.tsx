@@ -17,7 +17,7 @@ import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
 import { getUomLabel } from "@/lib/leadItemUom";
-import { getLeadSourceLabel, type Lead } from "@/types/lead";
+import type { Lead } from "@/types/lead";
 
 function DetailItem({
   label,
@@ -185,14 +185,6 @@ export default function LeadDetailPage() {
             <DetailItem label="Stage" value={lead.stage_name} />
             <DetailItem label="Category" value={lead.category_name} />
             <DetailItem label="Assigned To" value={lead.assigned_to_name} />
-            <DetailItem
-              label="Estimated Value"
-              value={formatCurrency(lead.estimated_value)}
-            />
-            <DetailItem
-              label="Lead Source"
-              value={getLeadSourceLabel(lead.lead_source)}
-            />
             <div className="rounded-lg bg-slate-50 px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                 Next Follow-up Date
@@ -226,8 +218,6 @@ export default function LeadDetailPage() {
                   <th className="px-3 py-2 font-medium">Model</th>
                   <th className="px-3 py-2 font-medium">Qty</th>
                   <th className="px-3 py-2 font-medium">UOM</th>
-                  <th className="px-3 py-2 font-medium">Unit Price</th>
-                  <th className="px-3 py-2 font-medium">Total</th>
                   <th className="px-3 py-2 font-medium">Specification</th>
                   <th className="px-3 py-2 font-medium">Remarks / Scope</th>
                 </tr>
@@ -236,15 +226,11 @@ export default function LeadDetailPage() {
                 {lead.items.map((item) => (
                   <tr key={item.id} className="border-b border-slate-100">
                     <td className="px-3 py-2">{item.category_name}</td>
-                    <td className="px-3 py-2">{item.product}</td>
-                    <td className="px-3 py-2">{item.brand || "—"}</td>
-                    <td className="px-3 py-2">{item.model || "—"}</td>
+                    <td className="px-3 py-2">{item.product_name}</td>
+                    <td className="px-3 py-2">{item.brand_name || "—"}</td>
+                    <td className="px-3 py-2">{item.model_name || "—"}</td>
                     <td className="px-3 py-2">{item.quantity}</td>
                     <td className="px-3 py-2">{getUomLabel(item.uom)}</td>
-                    <td className="px-3 py-2">{formatCurrency(item.unit_price)}</td>
-                    <td className="px-3 py-2 font-medium">
-                      {formatCurrency(item.total_price)}
-                    </td>
                     <td className="px-3 py-2 text-slate-600">
                       {item.specification || "—"}
                     </td>

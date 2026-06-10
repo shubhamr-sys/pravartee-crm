@@ -4,10 +4,12 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
+import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
 import {
-  LEAD_SOURCE_OPTIONS,
+  getRecordTypeLabel,
   type AssignableUser,
   type LeadFormData,
+  type LeadRecordType,
   type LeadStage,
   type ProductCategory,
 } from "@/types/lead";
@@ -68,30 +70,29 @@ export default function LeadForm({
     }
 
     const hasValidItems = values.items.some(
-      (item) => item.category && item.product.trim() && Number(item.quantity) >= 1,
+      (item) =>
+        item.category && item.product && Number(item.quantity) >= 1,
     );
     if (!hasValidItems) {
-      errors.items = "Add at least one product with category, name, and quantity.";
+      errors.items =
+        "Add at least one complete product line (category, product, quantity).";
     }
 
     for (const item of values.items) {
-      if (!item.category && item.product.trim()) {
-        errors.items = "Each product must have a category.";
-        break;
-      }
-      if (item.category && !item.product.trim()) {
-        errors.items = "Each product row must have a product name.";
-        break;
-      }
-      const qty = Number(item.quantity);
-      const price = Number(item.unit_price);
-      if (item.product.trim() && (Number.isNaN(qty) || qty < 1)) {
-        errors.items = "Quantity must be at least 1 for each product.";
-        break;
-      }
-      if (item.product.trim() && (Number.isNaN(price) || price < 0)) {
-        errors.items = "Unit price must be zero or greater.";
-        break;
+      if (item.category || item.product || item.brand || item.model) {
+        if (!item.category || !item.product) {
+          errors.items = "Each line must have category and product selected.";
+          break;
+        }
+        if (item.model && !item.brand) {
+          errors.items = "Select a brand before selecting a model.";
+          break;
+        }
+        const qty = Number(item.quantity);
+        if (Number.isNaN(qty) || qty < 1) {
+          errors.items = "Quantity must be at least 1 for each product.";
+          break;
+        }
       }
     }
 
@@ -105,8 +106,23 @@ export default function LeadForm({
     await onSubmit(values);
   }
 
+  const recordType = values.record_type || "LEAD";
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5">
+        <div>
+          <p className="text-sm font-medium text-slate-700">Record type</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Choose whether you are logging a {getRecordTypeLabel(recordType).toLowerCase()}.
+          </p>
+        </div>
+        <LeadVisitToggle
+          value={recordType}
+          onChange={(next: LeadRecordType) => updateField("record_type", next)}
+        />
+      </div>
+
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -167,20 +183,6 @@ export default function LeadForm({
             {fieldErrors.email && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
             )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Lead Source</label>
-            <select
-              className={inputClass}
-              value={values.lead_source || "OTHER"}
-              onChange={(e) => updateField("lead_source", e.target.value)}
-            >
-              {LEAD_SOURCE_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
           </div>
         </section>
       )}
@@ -260,7 +262,7 @@ export default function LeadForm({
           {isSubmitting
             ? "Saving..."
             : mode === "create"
-              ? "Create Lead"
+              ? `Create ${getRecordTypeLabel(recordType)}`
               : "Save Changes"}
         </button>
         {cancelHref && (

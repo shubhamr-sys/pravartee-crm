@@ -8,7 +8,7 @@ from apps.activities.services import log_lead_created, log_lead_updated
 
 from .assignment import user_can_assign_lead_to
 from .lead_item_services import replace_lead_items, sync_lead_from_items
-from .models import Lead, LeadItem, LeadStage, ProductCategory
+from .models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 
 DUE_SOON_DAYS = 3
 
@@ -31,6 +31,20 @@ class LeadStageSerializer(serializers.ModelSerializer):
 
 class LeadItemSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    brand_name = serializers.SerializerMethodField()
+    model_name = serializers.SerializerMethodField()
+    brand = serializers.PrimaryKeyRelatedField(
+        queryset=Brand.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    model = serializers.PrimaryKeyRelatedField(
+        source="product_model",
+        queryset=ProductModel.objects.all(),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = LeadItem
@@ -39,33 +53,58 @@ class LeadItemSerializer(serializers.ModelSerializer):
             "category",
             "category_name",
             "product",
+            "product_name",
             "brand",
+            "brand_name",
             "model",
+            "model_name",
             "quantity",
             "uom",
-            "unit_price",
-            "total_price",
             "specification",
             "remarks",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "total_price", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_brand_name(self, obj):
+        return obj.brand.name if obj.brand_id else ""
+
+    def get_model_name(self, obj):
+        return obj.product_model.name if obj.product_model_id else ""
 
     def validate_quantity(self, value):
         if value < 1:
             raise serializers.ValidationError("Quantity must be at least 1.")
         return value
 
-    def validate_unit_price(self, value):
-        if value < 0:
-            raise serializers.ValidationError("Unit price must be zero or greater.")
-        return value
+    def validate(self, attrs):
+        category = attrs.get("category") or getattr(self.instance, "category", None)
+        product = attrs.get("product") or getattr(self.instance, "product", None)
+        brand = attrs.get("brand") or getattr(self.instance, "brand", None)
+        product_model = attrs.get("product_model") or getattr(
+            self.instance,
+            "product_model",
+            None,
+        )
 
-    def validate_product(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Product name is required.")
-        return value.strip()
+        if category and product and product.category_id != category.id:
+            raise serializers.ValidationError(
+                {"product": "Product must belong to the selected category."},
+            )
+        if product and brand and brand.product_id != product.id:
+            raise serializers.ValidationError(
+                {"brand": "Brand must belong to the selected product."},
+            )
+        if product_model and not brand:
+            raise serializers.ValidationError(
+                {"model": "Select a brand before selecting a model."},
+            )
+        if brand and product_model and product_model.brand_id != brand.id:
+            raise serializers.ValidationError(
+                {"model": "Model must belong to the selected brand."},
+            )
+        return attrs
 
 
 class LeadSerializer(serializers.ModelSerializer):
@@ -84,8 +123,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "contact_person",
             "phone",
             "email",
-            "estimated_value",
-            "lead_source",
+            "record_type",
             "next_followup_date",
             "followup_status",
             "notes",
@@ -122,11 +160,6 @@ class LeadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Enter a valid phone number (7–20 digits, spaces, +, -, (), . allowed).",
             )
-        return value
-
-    def validate_estimated_value(self, value):
-        if value is not None and value < 0:
-            raise serializers.ValidationError("Estimated value must be zero or greater.")
         return value
 
     def validate(self, attrs):
@@ -173,7 +206,6 @@ class LeadSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop("items", None)
         if items_data:
-            validated_data.pop("estimated_value", None)
             first_category = items_data[0].get("category")
             if first_category:
                 validated_data["category"] = first_category
@@ -192,8 +224,6 @@ class LeadSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop("items", None)
-        if items_data is not None:
-            validated_data.pop("estimated_value", None)
 
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
@@ -212,7 +242,12 @@ class LeadSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
         if hasattr(instance, "items"):
             representation["items"] = LeadItemSerializer(
-                instance.items.all(),
+                instance.items.select_related(
+                    "category",
+                    "product",
+                    "brand",
+                    "product_model",
+                ),
                 many=True,
             ).data
         return representation
