@@ -1,0 +1,225 @@
+"""
+Sales MBR report API tests — metrics and RBAC.
+"""
+from io import BytesIO
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.utils import timezone
+from openpyxl import load_workbook
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from apps.accounts.choices import UserRole
+from apps.activities.models import ActivityType, LeadActivity
+from apps.leads.models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
+
+User = get_user_model()
+
+
+class SalesMBRReportTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = ProductCategory.objects.get(name="IT")
+        cls.product = Product.objects.get(category=cls.category, name="Laptop")
+        cls.brand = Brand.objects.get(product=cls.product, name="Dell")
+        cls.product_model = ProductModel.objects.get(brand=cls.brand, name="Latitude 5540")
+        cls.stage_new = LeadStage.objects.get(name="New")
+        cls.stage_pre_bid = LeadStage.objects.get(name="Pre Bid")
+        cls.stage_won = LeadStage.objects.get(name="Won")
+        cls.stage_lost = LeadStage.objects.get(name="Lost")
+
+        cls.ceo = User.objects.create_user(
+            username="ceo_mbr",
+            email="ceo_mbr@test.com",
+            password="pass12345",
+            role=UserRole.CEO,
+        )
+        cls.sales_head = User.objects.create_user(
+            username="head_mbr",
+            email="head_mbr@test.com",
+            password="pass12345",
+            role=UserRole.SALES_HEAD,
+        )
+        cls.salesperson = User.objects.create_user(
+            username="sales_mbr",
+            email="sales_mbr@test.com",
+            password="pass12345",
+            first_name="Raj",
+            last_name="Kumar",
+            role=UserRole.SALESPERSON,
+        )
+
+        now = timezone.now()
+        cls.lead_open = Lead.objects.create(
+            customer_name="Acme Corp",
+            company_name="Acme Industries",
+            category=cls.category,
+            stage=cls.stage_pre_bid,
+            assigned_to=cls.salesperson,
+        )
+        Lead.objects.filter(pk=cls.lead_open.pk).update(created_at=now)
+        LeadItem.objects.create(
+            lead=cls.lead_open,
+            category=cls.category,
+            product=cls.product,
+            brand=cls.brand,
+            product_model=cls.product_model,
+            quantity=10,
+        )
+
+        cls.lead_won = Lead.objects.create(
+            customer_name="Beta Ltd",
+            company_name="Beta Systems",
+            category=cls.category,
+            stage=cls.stage_won,
+            assigned_to=cls.salesperson,
+        )
+        Lead.objects.filter(pk=cls.lead_won.pk).update(created_at=now, updated_at=now)
+        LeadItem.objects.create(
+            lead=cls.lead_won,
+            category=cls.category,
+            product=cls.product,
+            brand=cls.brand,
+            product_model=cls.product_model,
+            quantity=5,
+        )
+        LeadActivity.objects.create(
+            lead=cls.lead_won,
+            user=cls.salesperson,
+            activity_type=ActivityType.LEAD_CLOSED_WON,
+            comments="Closed won",
+        )
+
+        cls.lead_ceo = Lead.objects.create(
+            customer_name="CEO Account",
+            company_name="Executive Co",
+            category=cls.category,
+            stage=cls.stage_pre_bid,
+            assigned_to=cls.ceo,
+        )
+        Lead.objects.filter(pk=cls.lead_ceo.pk).update(created_at=now)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.today = timezone.localdate()
+        self.params = {
+            "year": self.today.year,
+            "month": self.today.month,
+        }
+
+    def _auth(self, user):
+        self.client.force_authenticate(user=user)
+
+    def test_ceo_can_view_sales_mbr(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("performance_summary", response.data)
+        self.assertIn("active_pipeline_leads", response.data["performance_summary"])
+        self.assertIn("win_rate", response.data["performance_summary"])
+        self.assertIn("pipeline_by_stage", response.data)
+        self.assertGreaterEqual(
+            response.data["performance_summary"]["total_leads"],
+            2,
+        )
+
+    def test_sales_head_can_view_sales_mbr(self):
+        self._auth(self.sales_head)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_sales_head_excludes_ceo_owned_leads(self):
+        self._auth(self.sales_head)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        top_customers = response.data["top_customers"]
+        companies = [item["company"] for item in top_customers]
+        self.assertNotIn("Executive Co", companies)
+
+    def test_salesperson_cannot_access_sales_mbr(self):
+        self._auth(self.salesperson)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_access_sales_mbr(self):
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+
+    def test_salesperson_filter(self):
+        self._auth(self.ceo)
+        response = self.client.get(
+            "/api/v1/reports/sales/",
+            {**self.params, "salesperson": str(self.salesperson.id)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["filters"]["salesperson_id"], str(self.salesperson.id))
+
+    def test_ceo_assignee_available_in_filter(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        assignee_ids = [item["id"] for item in response.data["salespeople"]]
+        self.assertIn(str(self.ceo.id), assignee_ids)
+        ceo_option = next(
+            item for item in response.data["salespeople"] if item["id"] == str(self.ceo.id)
+        )
+        self.assertIn("(CEO)", ceo_option["name"])
+
+    def test_ceo_assignee_filter_shows_ceo_owned_leads(self):
+        self._auth(self.ceo)
+        response = self.client.get(
+            "/api/v1/reports/sales/",
+            {**self.params, "salesperson": str(self.ceo.id)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        companies = [item["company"] for item in response.data["top_customers"]]
+        self.assertIn("Executive Co", companies)
+
+    def test_invalid_month_returns_400(self):
+        self._auth(self.ceo)
+        response = self.client.get(
+            "/api/v1/reports/sales/",
+            {"year": self.today.year, "month": 13},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_ceo_can_export_excel(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/export/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(
+            "spreadsheetml",
+            response["Content-Type"],
+        )
+        workbook = load_workbook(BytesIO(b"".join(response.streaming_content)))
+        self.assertIn("Sales MBR", workbook.sheetnames)
+        ws = workbook["Sales MBR"]
+        self.assertEqual(ws["A1"].value.split("—")[0].strip(), "Sales MBR")
+
+    def test_sales_head_can_export_excel(self):
+        self._auth(self.sales_head)
+        response = self.client.get("/api/v1/reports/sales/export/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_salesperson_cannot_export_excel(self):
+        self._auth(self.salesperson)
+        response = self.client.get("/api/v1/reports/sales/export/", self.params)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_won_deals_counted_in_summary(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        self.assertGreaterEqual(response.data["performance_summary"]["won_deals"], 1)
+        self.assertGreaterEqual(
+            response.data["performance_summary"]["won_product_quantity"],
+            5,
+        )
+
+    def test_salesperson_performance_includes_assignee(self):
+        self._auth(self.ceo)
+        response = self.client.get("/api/v1/reports/sales/", self.params)
+        names = [row["user"] for row in response.data["salesperson_performance"]]
+        self.assertIn("Raj Kumar", names)
