@@ -85,6 +85,7 @@ export default function SalesMBRPage() {
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
   const [salesperson, setSalesperson] = useState("");
+  const [category, setCategory] = useState("");
   const [report, setReport] = useState<SalesMBRReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,8 +96,9 @@ export default function SalesMBRPage() {
       year,
       month,
       salesperson: salesperson || undefined,
+      category: category || undefined,
     }),
-    [year, month, salesperson],
+    [year, month, salesperson, category],
   );
 
   const loadReport = useCallback(async () => {
@@ -131,7 +133,8 @@ export default function SalesMBRPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `sales_mbr_${year}_${String(month).padStart(2, "0")}.xlsx`;
+      const monthName = report?.filters.month_name ?? "Report";
+      link.download = `Sales_MBR_${monthName}_${year}.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -170,7 +173,7 @@ export default function SalesMBRPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="month" className="mb-1.5 block text-sm font-medium">
               Month
@@ -222,6 +225,24 @@ export default function SalesMBRPage() {
               {report?.salespeople.map((sp) => (
                 <option key={sp.id} value={sp.id}>
                   {sp.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="category" className="mb-1.5 block text-sm font-medium">
+              Category
+            </label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="">All categories</option>
+              {report?.categories.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
                 </option>
               ))}
             </select>
@@ -284,15 +305,14 @@ export default function SalesMBRPage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Pipeline by Stage
-            </h2>
+            <h2 className="text-lg font-semibold text-slate-900">Sales Pipeline</h2>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                   <tr>
                     <th className="px-4 py-3 font-medium">Stage</th>
                     <th className="px-4 py-3 font-medium">Count</th>
+                    <th className="px-4 py-3 font-medium">Percentage</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -300,11 +320,39 @@ export default function SalesMBRPage() {
                     <tr key={row.stage} className="border-b border-slate-100">
                       <td className="px-4 py-3">{row.stage}</td>
                       <td className="px-4 py-3">{row.count}</td>
+                      <td className="px-4 py-3">{row.percentage ?? 0}%</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Category Analysis</h2>
+            <ProductTable
+              headers={["Category", "Lead Count", "Product Quantity", "Pipeline Share"]}
+              rows={(report.category_analysis ?? []).map((row) => [
+                row.category,
+                row.lead_count,
+                row.product_quantity,
+                `${row.pipeline_share_percentage}%`,
+              ])}
+              emptyMessage="No category data."
+            />
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Product Analysis</h2>
+            <ProductTable
+              headers={["Product", "Quantity", "Lead Count"]}
+              rows={(report.top_products ?? []).map((row) => [
+                row.product,
+                row.quantity,
+                row.lead_count,
+              ])}
+              emptyMessage="No product data."
+            />
           </section>
 
           <section className="space-y-3">
@@ -426,13 +474,14 @@ export default function SalesMBRPage() {
                     <th className="px-4 py-3 font-medium">Lost Deals</th>
                     <th className="px-4 py-3 font-medium">Pipeline Qty</th>
                     <th className="px-4 py-3 font-medium">Win Rate</th>
+                    <th className="px-4 py-3 font-medium">Follow-ups Done</th>
                   </tr>
                 </thead>
                 <tbody>
                   {report.salesperson_performance.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-4 py-6 text-center text-slate-500"
                       >
                         No salesperson data for this period.
@@ -451,11 +500,44 @@ export default function SalesMBRPage() {
                         <td className="px-4 py-3">
                           {row.win_rate ?? row.conversion_rate}%
                         </td>
+                        <td className="px-4 py-3">
+                          {row.followups_completed ?? 0}
+                        </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Follow-up Analysis</h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  label: "Today's Follow-ups",
+                  value: report.follow_up_analysis?.today_followups ?? 0,
+                },
+                {
+                  label: "Overdue Follow-ups",
+                  value: report.follow_up_analysis?.overdue_followups ?? 0,
+                },
+                {
+                  label: "Completed Follow-ups",
+                  value: report.follow_up_analysis?.completed_followups ?? 0,
+                },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <p className="text-sm text-slate-500">{card.label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">
+                    {card.value}
+                  </p>
+                </div>
+              ))}
             </div>
           </section>
         </>

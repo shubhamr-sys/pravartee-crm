@@ -93,8 +93,8 @@ Set role in Django admin after creation, or extend `createsuperuser` in a later 
 python manage.py runserver
 ```
 
-- Admin: http://127.0.0.1:8000/admin/
-- API root: http://127.0.0.1:8000/api/v1/
+- Admin: http://127.0.0.1:8084/admin/
+- API root: http://127.0.0.1:8084/api/v1/
 
 ### Access from another device on your network (phone, tablet, another PC)
 
@@ -115,7 +115,7 @@ python manage.py runserver
    Start Django bound to all interfaces:
 
    ```bash
-   python manage.py runserver 0.0.0.0:8000
+   python manage.py runserver 0.0.0.0:8084
    ```
 
 3. **Frontend** — copy and edit env (use the same LAN IP):
@@ -128,7 +128,7 @@ python manage.py runserver
    Set in `.env.local`:
 
    ```env
-   NEXT_PUBLIC_API_URL=http://192.168.1.100:8000
+   NEXT_PUBLIC_API_URL=http://192.168.1.100:8084
    ```
 
    Start Next.js on the network:
@@ -139,10 +139,10 @@ python manage.py runserver
 
 4. **On the other device** (same Wi‑Fi), open:
 
-   - App: `http://192.168.1.100:3000`
-   - API (optional): `http://192.168.1.100:8000/api/v1/`
+   - App: `http://192.168.1.100:3034`
+   - API (optional): `http://192.168.1.100:8084/api/v1/`
 
-5. **If it doesn’t connect**, allow incoming connections on ports **3000** and **8000** in your OS firewall.
+5. **If it doesn’t connect**, allow incoming connections on ports **3034** and **8084** in your OS firewall.
 
 > Development only. For production, use HTTPS, strict `ALLOWED_HOSTS`, and do not use `CORS_ALLOW_ALL_ORIGINS`.
 

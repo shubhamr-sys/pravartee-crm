@@ -11,6 +11,7 @@ from apps.accounts.access import activities_for_user, leads_for_user
 from apps.activities.serializers import LeadActivitySerializer
 from apps.attendance.metrics import get_attendance_metrics
 from apps.leads.models import Lead
+from apps.leads.followup_services import get_followup_dashboard_metrics
 from apps.leads.product_metrics import get_pipeline_product_metrics
 from apps.leads.serializers import LeadSerializer
 from apps.leads.stages import active_pipeline_leads
@@ -90,5 +91,6 @@ def get_dashboard_summary(user: User | None = None) -> dict:
             many=True,
         ).data
         summary["attendance"] = get_attendance_metrics(user)
+        summary["followups"] = get_followup_dashboard_metrics(user)
 
     return summary

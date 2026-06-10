@@ -79,20 +79,86 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
         row += 1
     row += 1
 
-    row = _write_section_title(ws, row, "Pipeline by Stage")
+    row = _write_section_title(ws, row, "Sales Pipeline by Stage")
     stage_data = [
-        [
-            item["stage"],
-            item["count"],
-        ]
+        [item["stage"], item["count"], item.get("percentage", 0)]
         for item in report["pipeline_by_stage"]
     ]
     row = _write_table(
         ws,
         row,
-        ["Stage", "Count"],
+        ["Stage", "Count", "Percentage (%)"],
         stage_data,
     )
+
+    row = _write_section_title(ws, row, "Category Analysis")
+    category_data = [
+        [
+            item["category"],
+            item["lead_count"],
+            item["product_quantity"],
+            item["pipeline_share_percentage"],
+        ]
+        for item in report.get("category_analysis", [])
+    ]
+    row = _write_table(
+        ws,
+        row,
+        ["Category", "Lead Count", "Product Quantity", "Pipeline Share (%)"],
+        category_data,
+    )
+
+    row = _write_section_title(ws, row, "Top Products")
+    product_data = [
+        [item["product"], item["quantity"], item["lead_count"]]
+        for item in report.get("top_products", [])
+    ]
+    row = _write_table(
+        ws,
+        row,
+        ["Product", "Quantity", "Lead Count"],
+        product_data,
+    )
+
+    row = _write_section_title(ws, row, "Salesperson Performance")
+    sp_data = [
+        [
+            item["user"],
+            item.get("assigned_leads", item["leads_managed"]),
+            item["won_deals"],
+            item["lost_deals"],
+            item.get("win_rate", item["conversion_rate"]),
+            item.get("followups_completed", 0),
+        ]
+        for item in report["salesperson_performance"]
+    ]
+    row = _write_table(
+        ws,
+        row,
+        [
+            "User",
+            "Assigned Leads",
+            "Won",
+            "Lost",
+            "Conversion (%)",
+            "Follow-ups Completed",
+        ],
+        sp_data,
+    )
+
+    followups = report.get("follow_up_analysis", {})
+    if followups:
+        row = _write_section_title(ws, row, "Follow-up Analysis")
+        followup_rows = [
+            ("Today's Follow-ups", followups.get("today_followups", 0)),
+            ("Overdue Follow-ups", followups.get("overdue_followups", 0)),
+            ("Completed Follow-ups", followups.get("completed_followups", 0)),
+        ]
+        for label, value in followup_rows:
+            ws.cell(row=row, column=1, value=label)
+            ws.cell(row=row, column=2, value=value)
+            row += 1
+        row += 1
 
     row = _write_section_title(ws, row, "Top Customers")
     customer_data = [
@@ -111,32 +177,6 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
         customer_data,
     )
 
-    row = _write_section_title(ws, row, "Salesperson Performance")
-    sp_data = [
-        [
-            item["user"],
-            item["leads_managed"],
-            item["won_deals"],
-            item["lost_deals"],
-            item["pipeline_product_quantity"],
-            item.get("win_rate", item["conversion_rate"]),
-        ]
-        for item in report["salesperson_performance"]
-    ]
-    row = _write_table(
-        ws,
-        row,
-        [
-            "User",
-            "Leads Managed",
-            "Won Deals",
-            "Lost Deals",
-            "Pipeline Product Quantity",
-            "Win Rate (%)",
-        ],
-        sp_data,
-    )
-
     products = report.get("products", {})
     if products:
         row = _write_section_title(ws, row, "Quantity by Product")
@@ -149,32 +189,6 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
             row,
             ["Product", "Category", "Brand", "Quantity"],
             qty_data,
-        )
-
-        row = _write_section_title(ws, row, "Quantity by Category")
-        cat_data = [
-            [item["category"], item["quantity"]]
-            for item in products.get("quantity_by_category", [])
-        ]
-        row = _write_table(ws, row, ["Category", "Quantity"], cat_data)
-
-        row = _write_section_title(ws, row, "Quantity by Brand")
-        brand_data = [
-            [item["brand"], item["quantity"]]
-            for item in products.get("quantity_by_brand", [])
-        ]
-        row = _write_table(ws, row, ["Brand", "Quantity"], brand_data)
-
-        row = _write_section_title(ws, row, "Top Selling Products")
-        top_data = [
-            [item["product"], item["brand"], item["quantity"]]
-            for item in products.get("top_selling_products", [])
-        ]
-        _write_table(
-            ws,
-            row,
-            ["Product", "Brand", "Quantity"],
-            top_data,
         )
 
     _auto_width(ws)

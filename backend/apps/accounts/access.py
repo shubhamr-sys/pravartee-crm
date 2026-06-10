@@ -2,11 +2,11 @@
 Role-based queryset scoping for CRM resources.
 """
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from apps.accounts.choices import UserRole
 from apps.activities.models import LeadActivity
-from apps.leads.models import Lead
+from apps.leads.models import FollowUp, Lead
 
 User = get_user_model()
 
@@ -39,6 +39,21 @@ def activities_for_user(user: User) -> QuerySet[LeadActivity]:
     if user.is_sales_head:
         return qs.exclude(lead__assigned_to__role=UserRole.CEO)
     return qs.filter(lead__assigned_to=user)
+
+
+def followups_for_user(user: User):
+    """Return follow-ups visible to the given user based on CRM role hierarchy."""
+    qs = FollowUp.objects.select_related(
+        "lead",
+        "lead__assigned_to",
+        "assigned_to",
+        "created_by",
+    )
+    if user.is_ceo:
+        return qs
+    if user.is_sales_head:
+        return qs.exclude(lead__assigned_to__role=UserRole.CEO)
+    return qs.filter(Q(assigned_to=user) | Q(lead__assigned_to=user))
 
 
 def user_can_access_lead(user: User, lead: Lead) -> bool:

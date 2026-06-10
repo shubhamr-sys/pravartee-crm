@@ -1,4 +1,5 @@
 import type { LeadActivity } from "@/types/activity";
+import type { FollowUpDashboardMetrics } from "@/types/followup";
 import type { AttendanceMetrics } from "@/types/attendance";
 import type { Lead } from "@/types/lead";
 
@@ -34,4 +35,5 @@ export interface DashboardSummary {
   recent_activities?: LeadActivity[];
   attendance?: AttendanceMetrics;
   products?: DashboardProductMetrics;
+  followups?: FollowUpDashboardMetrics;
 }

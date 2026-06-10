@@ -11,7 +11,12 @@ from django.utils import timezone
 from apps.accounts.access import leads_for_user
 from apps.accounts.choices import UserRole
 from apps.activities.models import ActivityType, LeadActivity
-from apps.leads.models import LeadItem
+from apps.leads.categories import PRODUCT_CATEGORIES
+from apps.leads.followup_services import (
+    get_followup_report_metrics,
+    get_salesperson_followups_completed,
+)
+from apps.leads.models import LeadItem, ProductCategory
 from apps.leads.product_metrics import get_product_report_metrics
 from apps.leads.stages import (
     ACTIVE_PIPELINE_STAGES,
@@ -39,14 +44,21 @@ def get_period_bounds(year: int, month: int) -> tuple[datetime, datetime]:
     return start, end
 
 
-def scoped_leads(user: User, salesperson_id: str | None = None):
-    """Role-scoped active leads, optionally filtered to one assignee."""
+def scoped_leads(
+    user: User,
+    salesperson_id: str | None = None,
+    category_id: str | None = None,
+):
+    """Role-scoped active leads, optionally filtered to one assignee or category."""
     qs = leads_for_user(user).filter(is_active=True).select_related(
         "assigned_to",
         "stage",
+        "category",
     )
     if salesperson_id:
         qs = qs.filter(assigned_to_id=salesperson_id)
+    if category_id:
+        qs = qs.filter(category_id=category_id)
     return qs
 
 
@@ -70,6 +82,11 @@ def filterable_salespeople(user: User):
     if user.is_sales_head:
         return qs.filter(role=UserRole.SALESPERSON)
     return qs.none()
+
+
+def filterable_categories():
+    """Categories available in the report category filter."""
+    return ProductCategory.objects.filter(name__in=PRODUCT_CATEGORIES).order_by("name")
 
 
 def _won_lost_lead_ids(
@@ -103,15 +120,96 @@ def _win_rate(won: int, lost: int) -> float:
     return round((won / closed) * 100, 1) if closed else 0.0
 
 
+def _pipeline_with_percentages(leads) -> list[dict]:
+    total = leads.count()
+    stage_rows = (
+        leads.values("stage__name", "stage__sequence")
+        .annotate(count=Count("id"))
+        .order_by("stage__sequence")
+    )
+    stage_map: dict[str, int] = {
+        row["stage__name"]: row["count"] for row in stage_rows
+    }
+    result = []
+    for name in ALL_STAGES_ORDER:
+        count = stage_map.get(name, 0)
+        percentage = round((count / total) * 100, 1) if total else 0.0
+        result.append(
+            {
+                "stage": name,
+                "count": count,
+                "percentage": percentage,
+            }
+        )
+    return result
+
+
+def _category_analysis(leads) -> list[dict]:
+    open_pipeline = active_pipeline_leads(leads)
+    total_pipeline = open_pipeline.count()
+    rows = []
+    for category_name in PRODUCT_CATEGORIES:
+        category_leads = leads.filter(category__name=category_name)
+        lead_count = category_leads.count()
+        product_quantity = int(
+            LeadItem.objects.filter(lead__in=category_leads).aggregate(
+                total=Sum("quantity"),
+            )["total"]
+            or 0,
+        )
+        pipeline_share = (
+            round(
+                (
+                    active_pipeline_leads(category_leads).count()
+                    / total_pipeline
+                )
+                * 100,
+                1,
+            )
+            if total_pipeline
+            else 0.0
+        )
+        rows.append(
+            {
+                "category": category_name,
+                "lead_count": lead_count,
+                "product_quantity": product_quantity,
+                "pipeline_share_percentage": pipeline_share,
+            }
+        )
+    return rows
+
+
+def _top_products_analysis(leads, limit: int = 10) -> list[dict]:
+    items = LeadItem.objects.filter(lead__in=leads)
+    rows = (
+        items.values("product__name")
+        .annotate(
+            quantity=Sum("quantity"),
+            lead_count=Count("lead", distinct=True),
+        )
+        .order_by("-quantity")[:limit]
+    )
+    return [
+        {
+            "product": row["product__name"],
+            "quantity": int(row["quantity"] or 0),
+            "lead_count": row["lead_count"],
+        }
+        for row in rows
+    ]
+
+
 def get_sales_mbr_report(
     user: User,
     year: int,
     month: int,
     salesperson_id: str | None = None,
+    category_id: str | None = None,
 ) -> dict:
     """Build the Sales MBR JSON payload."""
     start, end = get_period_bounds(year, month)
-    leads = scoped_leads(user, salesperson_id)
+    leads = scoped_leads(user, salesperson_id, category_id)
 
     period_leads = leads.filter(created_at__gte=start, created_at__lt=end)
     total_leads = period_leads.count()
@@ -144,23 +242,9 @@ def get_sales_mbr_report(
         or 0,
     )
 
-    stage_rows = (
-        leads.values("stage__name", "stage__sequence")
-        .annotate(count=Count("id"))
-        .order_by("stage__sequence")
-    )
-    stage_map: dict[str, dict] = {}
-    for row in stage_rows:
-        name = row["stage__name"]
-        stage_map[name] = {
-            "stage": name,
-            "count": row["count"],
-        }
-
-    pipeline_by_stage = [
-        stage_map.get(name, {"stage": name, "count": 0})
-        for name in ALL_STAGES_ORDER
-    ]
+    pipeline_by_stage = _pipeline_with_percentages(leads)
+    category_analysis = _category_analysis(leads)
+    top_products = _top_products_analysis(leads)
 
     top_customers_qs = open_pipeline.order_by("-updated_at")[:10]
     top_customers = [
@@ -209,19 +293,28 @@ def get_sales_mbr_report(
                 )["total"]
                 or 0,
             )
+            followups_completed = get_salesperson_followups_completed(
+                user,
+                assignee,
+                start,
+                end,
+            )
             salesperson_rows.append(
                 {
                     "user_id": str(assignee.id),
                     "user": assignee.get_full_name() or assignee.username,
+                    "assigned_leads": user_leads.count(),
                     "leads_managed": user_leads.count(),
                     "won_deals": user_won,
                     "lost_deals": user_lost,
                     "pipeline_product_quantity": user_pipeline_quantity,
                     "conversion_rate": _win_rate(user_won, user_lost),
                     "win_rate": _win_rate(user_won, user_lost),
+                    "followups_completed": followups_completed,
                 }
             )
 
+    follow_up_analysis = get_followup_report_metrics(user, start, end, leads)
     month_name = datetime(year, month, 1).strftime("%B")
 
     return {
@@ -230,6 +323,7 @@ def get_sales_mbr_report(
             "month": month,
             "month_name": month_name,
             "salesperson_id": salesperson_id,
+            "category_id": category_id,
         },
         "performance_summary": {
             "total_leads": total_leads,
@@ -243,8 +337,11 @@ def get_sales_mbr_report(
             "average_products_per_won_deal": average_products_per_won_deal,
         },
         "pipeline_by_stage": pipeline_by_stage,
+        "category_analysis": category_analysis,
+        "top_products": top_products,
         "top_customers": top_customers,
         "salesperson_performance": salesperson_rows,
+        "follow_up_analysis": follow_up_analysis,
         "salespeople": [
             {
                 "id": str(sp.id),
@@ -252,11 +349,15 @@ def get_sales_mbr_report(
             }
             for sp in filterable_salespeople(user)
         ],
+        "categories": [
+            {"id": str(cat.id), "name": cat.name}
+            for cat in filterable_categories()
+        ],
         "products": get_product_report_metrics(user),
     }
 
 
-def parse_report_filters(request) -> tuple[int, int, str | None]:
+def parse_report_filters(request) -> tuple[int, int, str | None, str | None]:
     """Parse and validate query params for report endpoints."""
     today = timezone.localdate()
     try:
@@ -274,4 +375,5 @@ def parse_report_filters(request) -> tuple[int, int, str | None]:
         raise ValueError("Year out of range.")
 
     salesperson_id = request.query_params.get("salesperson") or None
-    return year, month, salesperson_id
+    category_id = request.query_params.get("category") or None
+    return year, month, salesperson_id, category_id

@@ -4,6 +4,7 @@ Automatic lead activity logging.
 from django.contrib.auth import get_user_model
 
 from apps.leads.models import Lead
+from apps.leads.stage_history_services import log_stage_history
 from apps.leads.stages import LOST_STAGE as LOST_STAGE_NAME
 from apps.leads.stages import WON_STAGE as WON_STAGE_NAME
 
@@ -91,6 +92,7 @@ def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
     new_stage = _stage_name(lead)
     if old_stage != new_stage:
         log_stage_change(lead, user, old_stage, new_stage)
+        log_stage_history(lead, user, old_stage, new_stage)
         changed = True
 
     old_assignee = _format_assignee(previous)
