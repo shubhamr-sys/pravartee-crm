@@ -10,8 +10,13 @@ dist/
 downloads/
 eggs/
 .eggs/
+<<<<<<< HEAD
 /lib/
 /lib64/
+=======
+lib/
+lib64/
+>>>>>>> f80148ffd016d315bbd32fe3787f7e7a3516bb2b
 parts/
 sdist/
 var/
