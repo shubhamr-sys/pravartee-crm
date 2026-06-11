@@ -54,6 +54,12 @@ echo " Backend:  http://127.0.0.1:${BACKEND_PORT} (proxied at /api when HTTPS)"
 echo " Frontend: ${FRONTEND_URL}"
 if [[ "$ENABLE_HTTPS" == "true" ]]; then
   echo " GPS:      enabled (HTTPS — accept the self-signed cert on each device)"
+  echo ""
+  echo " On phones/tablets use: ${FRONTEND_URL}"
+  echo " (not localhost — that only works on this machine)"
+  echo ""
+  echo " Certificate warning: tap Advanced → Proceed / Continue anyway."
+  echo " Chrome desktop shortcut: on the error page, type thisisunsafe"
 else
   echo " GPS:      localhost only — use ./start-https.sh for LAN devices"
 fi
