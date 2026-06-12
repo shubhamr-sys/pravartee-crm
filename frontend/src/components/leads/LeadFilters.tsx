@@ -1,6 +1,7 @@
 "use client";
 
 import CategorySelectField from "@/components/leads/CategorySelectField";
+import { formFieldClass } from "@/lib/formStyles";
 import type { AssignableUser, LeadStage, ProductCategory } from "@/types/lead";
 
 interface LeadFiltersProps {
@@ -32,8 +33,7 @@ const ORDER_OPTIONS = [
   { value: "-next_followup_date", label: "Follow-up: Latest" },
 ];
 
-const selectClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+const selectClass = formFieldClass;
 
 export default function LeadFilters({
   search,
