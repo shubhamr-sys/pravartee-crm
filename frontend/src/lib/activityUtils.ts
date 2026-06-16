@@ -10,6 +10,9 @@ const ACTIVITY_ICONS: Record<string, string> = {
   LEAD_CLOSED_WON: "🏆",
   LEAD_CLOSED_LOST: "❌",
   PRICE_REQUESTED: "💰",
+  PRICING_RESPONSE_RECEIVED: "📥",
+  VENDOR_QUOTE_UPLOADED: "📎",
+  QUOTATION_GENERATED: "📄",
 };
 
 export function getActivityIcon(activityType: string): string {

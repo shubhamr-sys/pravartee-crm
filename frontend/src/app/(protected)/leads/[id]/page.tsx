@@ -6,8 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import { isAxiosError } from "axios";
 
 import FollowupBadge from "@/components/leads/FollowupBadge";
+import LocationDisplay from "@/components/attendance/LocationDisplay";
 import LeadActivityTimeline from "@/components/leads/LeadActivityTimeline";
 import LeadFollowUpsSection from "@/components/leads/LeadFollowUpsSection";
+import LeadPricingSection from "@/components/leads/LeadPricingSection";
 import LeadStageHistoryTimeline from "@/components/leads/LeadStageHistoryTimeline";
 import LeadBreadcrumb from "@/components/leads/LeadBreadcrumb";
 import LeadNotFound from "@/components/leads/LeadNotFound";
@@ -20,6 +22,12 @@ import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
 import { getUomLabel } from "@/lib/leadItemUom";
 import type { Lead } from "@/types/lead";
+import type { PricingRequest } from "@/types/pricing";
+
+function pricingPdfUrl(request: PricingRequest | null | undefined): string | null {
+  if (!request) return null;
+  return request.generated_quotation_url || request.vendor_quote_url || null;
+}
 
 function DetailItem({
   label,
@@ -52,6 +60,7 @@ export default function LeadDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [quotationReady, setQuotationReady] = useState<PricingRequest | null>(null);
 
   const showSavedBanner =
     searchParams.get("saved") === "1" || searchParams.get("created") === "1";
@@ -119,6 +128,9 @@ export default function LeadDetailPage() {
     return <ErrorState message={error || "Unable to load lead."} onRetry={loadLead} />;
   }
 
+  const pricePdfUrl =
+    pricingPdfUrl(quotationReady) ?? lead.latest_price_pdf_url ?? null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -138,6 +150,16 @@ export default function LeadDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {pricePdfUrl && (
+            <a
+              href={pricePdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
+            >
+              View price
+            </a>
+          )}
           <Link
             href={`/leads/${lead.id}/edit`}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
@@ -169,6 +191,36 @@ export default function LeadDetailPage() {
         </div>
       )}
 
+      {quotationReady && pricingPdfUrl(quotationReady) && (
+        <div className="flex flex-col gap-3 rounded-lg border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            <span className="font-semibold">Pricing received.</span>{" "}
+            {quotationReady.generated_quotation_url
+              ? "A quotation PDF has been generated and is ready to download."
+              : "A vendor quote PDF has been uploaded."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href={pricingPdfUrl(quotationReady)!}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
+            >
+              {quotationReady.generated_quotation_url
+                ? "Open Quotation PDF"
+                : "Open Vendor PDF"}
+            </a>
+            <button
+              type="button"
+              onClick={() => setQuotationReady(null)}
+              className="text-sm font-medium text-teal-800 hover:text-teal-900"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Customer Information</h2>
@@ -178,6 +230,35 @@ export default function LeadDetailPage() {
             <DetailItem label="Contact Person" value={lead.contact_person} />
             <DetailItem label="Phone" value={lead.phone} />
             <DetailItem label="Email" value={lead.email} />
+            <div className="rounded-lg bg-slate-50 px-4 py-3 sm:col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Address
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-900">
+                {lead.address || "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-4 py-3 sm:col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                GPS Location
+              </p>
+              <div className="mt-1">
+                {lead.latitude && lead.longitude ? (
+                  <div className="space-y-1 text-sm text-slate-900">
+                    <p>
+                      {Number(lead.latitude).toFixed(6)}, {Number(lead.longitude).toFixed(6)}
+                    </p>
+                    <LocationDisplay
+                      latitude={lead.latitude}
+                      longitude={lead.longitude}
+                      mapUrl={lead.location_url}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-900">—</p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -246,6 +327,26 @@ export default function LeadDetailPage() {
           </div>
         </section>
       )}
+
+      <LeadPricingSection
+        leadId={lead.id}
+        onQuotationReady={(request) => {
+          setQuotationReady(request);
+          setLead((current) =>
+            current
+              ? {
+                  ...current,
+                  has_pending_pricing_request: false,
+                  latest_price_pdf_url:
+                    request.generated_quotation_url ||
+                    request.vendor_quote_url ||
+                    current.latest_price_pdf_url,
+                }
+              : current,
+          );
+        }}
+        onUpdated={loadLead}
+      />
 
       <LeadFollowUpsSection
         leadId={lead.id}

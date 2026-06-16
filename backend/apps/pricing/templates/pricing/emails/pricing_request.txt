@@ -1,0 +1,16 @@
+Pricing request — {{ lead.customer_name }}
+
+Customer: {{ lead.customer_name }}
+Company: {{ lead.company_name|default:"—" }}
+Record type: {{ record_type_display }}
+Stage: {{ lead.stage.name }}
+Requested by: {{ requested_by }}
+Address: {{ address|default:"—" }}
+GPS location: {% if location_url %}{{ location_url }}{% elif gps_coordinates %}{{ gps_coordinates }}{% else %}—{% endif %}
+
+Products:
+{% for row in line_rows %}
+- {{ row.hierarchy }} | Qty: {{ row.quantity }} | Spec: {{ row.specification }} | Remarks: {{ row.remarks }}
+{% endfor %}
+
+Submit pricing: {{ submission_url }}

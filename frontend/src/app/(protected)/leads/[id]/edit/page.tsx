@@ -16,7 +16,6 @@ import {
   fetchCategories,
   fetchLead,
   fetchStages,
-  toLeadApiPayload,
   updateLead,
 } from "@/lib/leadsService";
 import type {
@@ -40,6 +39,9 @@ function leadToFormData(lead: Lead): LeadFormData {
     contact_person: lead.contact_person,
     phone: lead.phone,
     email: lead.email,
+    address: lead.address || "",
+    latitude: lead.latitude ? Number(lead.latitude).toFixed(6) : "",
+    longitude: lead.longitude ? Number(lead.longitude).toFixed(6) : "",
     category: lead.category || "",
     stage: lead.stage,
     next_followup_date: lead.next_followup_date || "",
@@ -106,20 +108,13 @@ export default function EditLeadPage() {
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const payload = toLeadApiPayload({
-      record_type: values.record_type,
-      stage: values.stage,
-      next_followup_date: values.next_followup_date || undefined,
-      notes: values.notes,
-      items: values.items,
-    });
-
-    if (canAssign) {
-      payload.assigned_to = values.assigned_to || undefined;
+    const submitValues = { ...values };
+    if (!canAssign) {
+      delete submitValues.assigned_to;
     }
 
     try {
-      await updateLead(lead.id, payload);
+      await updateLead(lead.id, submitValues);
       router.push(`/leads/${lead.id}?saved=1`);
     } catch (err) {
       if (isAxiosError(err)) {

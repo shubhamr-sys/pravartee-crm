@@ -39,6 +39,7 @@ LOCAL_APPS = [
     "apps.dashboard",
     "apps.attendance",
     "apps.reports",
+    "apps.pricing",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -161,6 +162,22 @@ CORS_ALLOWED_ORIGINS = config(
     cast=Csv(),
 )
 CORS_ALLOW_CREDENTIALS = True
+
+# Email
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_USE_SSL = config("EMAIL_USE_SSL", default=False, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="crm@pravarteesales.com")
+FRONTEND_PUBLIC_URL = config("FRONTEND_PUBLIC_URL", default="http://localhost:3034")
+PRICING_COMMERCIAL_EMAILS = config("PRICING_COMMERCIAL_EMAILS", default="", cast=Csv())
+PRICING_PURCHASE_EMAILS = config("PRICING_PURCHASE_EMAILS", default="", cast=Csv())
 
 # Security defaults (overridden in production)
 SECURE_BROWSER_XSS_FILTER = True

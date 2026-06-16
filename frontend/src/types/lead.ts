@@ -53,6 +53,10 @@ export interface Lead {
   contact_person: string;
   phone: string;
   email: string;
+  address: string;
+  latitude: string | null;
+  longitude: string | null;
+  location_url?: string | null;
   record_type: LeadRecordType;
   next_followup_date: string | null;
   followup_status?: FollowupStatus;
@@ -64,6 +68,8 @@ export interface Lead {
   stage: string;
   stage_name: string;
   is_active: boolean;
+  latest_price_pdf_url?: string | null;
+  has_pending_pricing_request?: boolean;
   items?: LeadItem[];
   created_at: string;
   updated_at: string;
@@ -106,6 +112,9 @@ export interface LeadFormData {
   contact_person: string;
   phone: string;
   email: string;
+  address: string;
+  latitude: string;
+  longitude: string;
   category: string;
   stage: string;
   next_followup_date?: string;

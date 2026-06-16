@@ -28,6 +28,7 @@ import type {
 } from "@/types/lead";
 
 const PAGE_SIZE = 25;
+const PRICING_POLL_INTERVAL_MS = 15_000;
 
 export default function LeadsPage() {
   const { isCEO, isSalesHead } = useAuth();
@@ -111,9 +112,11 @@ export default function LeadsPage() {
     }
   }, [isCEO, isSalesHead]);
 
-  const loadLeads = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const loadLeads = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const data = await fetchLeads({
         page,
@@ -128,11 +131,34 @@ export default function LeadsPage() {
       setLeads(data.results);
       setCount(data.count);
     } catch {
-      setError("Unable to load leads. Please try again.");
+      if (!options?.silent) {
+        setError("Unable to load leads. Please try again.");
+      }
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   }, [page, debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
+
+  const handlePricingRequested = useCallback((leadId: string) => {
+    setLeads((current) =>
+      current.map((lead) =>
+        lead.id === leadId ? { ...lead, has_pending_pricing_request: true } : lead,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    const hasPendingPricing = leads.some((lead) => lead.has_pending_pricing_request);
+    if (!hasPendingPricing) return;
+
+    const intervalId = window.setInterval(() => {
+      void loadLeads({ silent: true });
+    }, PRICING_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [leads, loadLeads]);
 
   useEffect(() => {
     loadReferenceData().catch(() => {
@@ -209,7 +235,11 @@ export default function LeadsPage() {
 
       {!isLoading && !error && leads.length > 0 && (
         <>
-          <LeadTable leads={leads} canEdit />
+          <LeadTable
+            leads={leads}
+            canEdit
+            onPricingRequested={handlePricingRequested}
+          />
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
               Showing {leads.length} of {count} leads

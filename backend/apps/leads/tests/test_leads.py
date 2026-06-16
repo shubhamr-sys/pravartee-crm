@@ -441,19 +441,26 @@ class LeadManagementTestCase(TestCase):
         self.assertIn("recent_lead_updates", response.data)
         self.assertIn("products", response.data)
 
-    def test_ask_for_price_logs_activity(self):
-        lead = Lead.objects.create(
-            customer_name="Price Request Lead",
-            category=self.category,
-            stage=self.stage_new,
-            assigned_to=self.salesperson,
-        )
+    def test_ask_for_price_creates_pricing_request(self):
         self._auth(self.salesperson)
-        response = self.client.post(f"/api/v1/leads/{lead.id}/ask-for-price/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        create_response = self.client.post(
+            "/api/v1/leads/",
+            {
+                "customer_name": "Price Request Lead",
+                "company_name": "Price Co",
+                "stage": str(self.stage_new.id),
+                "items": [self._item_payload()],
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        lead_id = create_response.data["id"]
+        response = self.client.post(f"/api/v1/leads/{lead_id}/ask-for-price/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("pricing_request_id", response.data)
         self.assertTrue(
             LeadActivity.objects.filter(
-                lead=lead,
+                lead_id=lead_id,
                 activity_type=ActivityType.PRICE_REQUESTED,
             ).exists(),
         )

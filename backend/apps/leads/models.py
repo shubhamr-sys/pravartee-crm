@@ -114,6 +114,19 @@ class Lead(TimeStampedModel):
     contact_person = models.CharField(max_length=255, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(max_length=255, blank=True)
+    address = models.TextField(blank=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+    )
     record_type = models.CharField(
         max_length=20,
         choices=LeadRecordType.choices,

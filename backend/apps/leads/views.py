@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status, viewsets
@@ -8,12 +9,29 @@ from rest_framework.views import APIView
 
 from apps.accounts.access import leads_for_user, user_can_access_lead
 from apps.accounts.permissions import CanAccessLead, IsAuthenticatedCRMUser
-from apps.activities.services import log_price_requested
+from apps.pricing.models import PricingRequest, PricingRequestStatus
+from apps.pricing.services import create_pricing_request
 
 from .categories import PRODUCT_CATEGORIES
 from .metrics import get_lead_list_metrics
 from .models import Lead, LeadStage, ProductCategory
 from .serializers import LeadSerializer, LeadStageSerializer, ProductCategorySerializer
+
+RESPONDED_PRICING_PREFETCH = Prefetch(
+    "pricing_requests",
+    queryset=PricingRequest.objects.filter(
+        status=PricingRequestStatus.RESPONDED,
+    ).order_by("-responded_at"),
+    to_attr="responded_pricing_requests",
+)
+
+PENDING_PRICING_PREFETCH = Prefetch(
+    "pricing_requests",
+    queryset=PricingRequest.objects.filter(
+        status=PricingRequestStatus.PENDING,
+    ),
+    to_attr="pending_pricing_requests",
+)
 
 
 class ProductCategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -66,6 +84,8 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return leads_for_user(self.request.user).prefetch_related(
+            RESPONDED_PRICING_PREFETCH,
+            PENDING_PRICING_PREFETCH,
             "items",
             "items__category",
             "items__product",
@@ -93,6 +113,8 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
             "category",
             "stage",
         ).prefetch_related(
+            RESPONDED_PRICING_PREFETCH,
+            PENDING_PRICING_PREFETCH,
             "items",
             "items__category",
             "items__product",
@@ -113,8 +135,15 @@ class LeadAskForPriceView(APIView):
         lead = get_object_or_404(Lead.objects.all(), pk=pk)
         if not user_can_access_lead(request.user, lead):
             raise PermissionDenied("You do not have permission to access this lead.")
-        log_price_requested(lead, request.user)
+        try:
+            pricing_request = create_pricing_request(lead, request.user)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(
-            {"message": "Price request recorded."},
-            status=status.HTTP_200_OK,
+            {
+                "message": "Pricing request created and notification sent.",
+                "pricing_request_id": str(pricing_request.id),
+                "token": pricing_request.token,
+            },
+            status=status.HTTP_201_CREATED,
         )
