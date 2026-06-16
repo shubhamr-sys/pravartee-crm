@@ -512,6 +512,40 @@ export default function SalesMBRPage() {
           </section>
 
           <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Pricing Requests</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Total Requests",
+                  value: report.pricing_analysis?.total_pricing_requests ?? 0,
+                },
+                {
+                  label: "Pending",
+                  value: report.pricing_analysis?.pending_pricing_requests ?? 0,
+                },
+                {
+                  label: "Responded",
+                  value: report.pricing_analysis?.responded_pricing_requests ?? 0,
+                },
+                {
+                  label: "Avg Response (hrs)",
+                  value: report.pricing_analysis?.average_response_time_hours ?? "—",
+                },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <p className="text-sm text-slate-500">{card.label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">
+                    {card.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">Follow-up Analysis</h2>
             <div className="grid gap-4 sm:grid-cols-3">
               {[

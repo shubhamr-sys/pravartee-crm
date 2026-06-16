@@ -18,6 +18,8 @@ from apps.leads.followup_services import (
 )
 from apps.leads.models import LeadItem, ProductCategory
 from apps.leads.product_metrics import get_product_report_metrics
+from apps.pricing.access import pricing_requests_for_user
+from apps.pricing.services import get_pricing_metrics
 from apps.leads.stages import (
     ACTIVE_PIPELINE_STAGES,
     ALL_STAGES_ORDER,
@@ -315,6 +317,11 @@ def get_sales_mbr_report(
             )
 
     follow_up_analysis = get_followup_report_metrics(user, start, end, leads)
+    pricing_qs = pricing_requests_for_user(user).filter(
+        requested_at__gte=start,
+        requested_at__lt=end,
+    )
+    pricing_analysis = get_pricing_metrics(pricing_qs)
     month_name = datetime(year, month, 1).strftime("%B")
 
     return {
@@ -342,6 +349,7 @@ def get_sales_mbr_report(
         "top_customers": top_customers,
         "salesperson_performance": salesperson_rows,
         "follow_up_analysis": follow_up_analysis,
+        "pricing_analysis": pricing_analysis,
         "salespeople": [
             {
                 "id": str(sp.id),

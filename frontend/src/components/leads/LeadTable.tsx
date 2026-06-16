@@ -11,9 +11,14 @@ import type { Lead } from "@/types/lead";
 interface LeadTableProps {
   leads: Lead[];
   canEdit?: boolean;
+  onPricingRequested?: (leadId: string) => void;
 }
 
-export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
+export default function LeadTable({
+  leads,
+  canEdit = true,
+  onPricingRequested,
+}: LeadTableProps) {
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ id: string; message: string } | null>(
     null,
@@ -25,6 +30,7 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
     try {
       const response = await askForPrice(lead.id);
       setFeedback({ id: lead.id, message: response.message });
+      onPricingRequested?.(lead.id);
     } catch {
       setFeedback({ id: lead.id, message: "Unable to submit price request." });
     } finally {
@@ -49,7 +55,11 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {leads.map((lead) => (
+            {leads.map((lead) => {
+              const isAwaitingPricing = Boolean(lead.has_pending_pricing_request);
+              const isSending = requestingId === lead.id;
+
+              return (
               <tr key={lead.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <Link
@@ -96,13 +106,32 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
                       >
                         View
                       </Link>
+                      {lead.latest_price_pdf_url && (
+                        <a
+                          href={lead.latest_price_pdf_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
+                        >
+                          View price
+                        </a>
+                      )}
                       <button
                         type="button"
                         onClick={() => void handleAskForPrice(lead)}
-                        disabled={requestingId === lead.id}
-                        className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                        disabled={isSending || isAwaitingPricing}
+                        title={
+                          isAwaitingPricing
+                            ? "Waiting for pricing response and PDF generation"
+                            : undefined
+                        }
+                        className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {requestingId === lead.id ? "Sending..." : "Ask for price"}
+                        {isSending
+                          ? "Sending..."
+                          : isAwaitingPricing
+                            ? "Awaiting pricing..."
+                            : "Ask for price"}
                       </button>
                       {canEdit && (
                         <Link
@@ -127,7 +156,8 @@ export default function LeadTable({ leads, canEdit = true }: LeadTableProps) {
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

@@ -63,6 +63,14 @@ export interface FollowUpAnalysis {
   completed_followups: number;
 }
 
+export interface PricingAnalysis {
+  total_pricing_requests: number;
+  pending_pricing_requests: number;
+  responded_pricing_requests: number;
+  average_response_time_hours: number | null;
+  pricing_requests_by_status: { status: string; count: number }[];
+}
+
 export interface ReportSalespersonOption {
   id: string;
   name: string;
@@ -108,6 +116,7 @@ export interface SalesMBRReport {
   top_customers: TopCustomerRow[];
   salesperson_performance: SalespersonPerformanceRow[];
   follow_up_analysis: FollowUpAnalysis;
+  pricing_analysis?: PricingAnalysis;
   salespeople: ReportSalespersonOption[];
   categories: ReportCategoryOption[];
   products?: ProductReportMetrics;

@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import LocationDisplay from "@/components/attendance/LocationDisplay";
 import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
 import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
+import { GeolocationError, getCurrentPosition } from "@/lib/geolocation";
 import {
   getRecordTypeLabel,
   type AssignableUser,
@@ -32,6 +34,10 @@ const inputClass =
 
 const PHONE_PATTERN = /^[\d\s+\-().]{7,20}$/;
 
+function formatGpsCoordinate(value: number): string {
+  return value.toFixed(6);
+}
+
 export default function LeadForm({
   mode,
   initialValues,
@@ -46,10 +52,38 @@ export default function LeadForm({
 }: LeadFormProps) {
   const [values, setValues] = useState<LeadFormData>(initialValues);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isCapturingGps, setIsCapturingGps] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   function updateField<K extends keyof LeadFormData>(key: K, value: LeadFormData[K]) {
     setValues((current) => ({ ...current, [key]: value }));
   }
+
+  async function handleCaptureGps() {
+    setIsCapturingGps(true);
+    setGpsError(null);
+    try {
+      const position = await getCurrentPosition();
+      updateField("latitude", formatGpsCoordinate(position.latitude));
+      updateField("longitude", formatGpsCoordinate(position.longitude));
+    } catch (err) {
+      setGpsError(
+        err instanceof GeolocationError
+          ? err.message.replace("punch attendance", "capture location")
+          : "Unable to capture GPS location.",
+      );
+    } finally {
+      setIsCapturingGps(false);
+    }
+  }
+
+  function clearGps() {
+    updateField("latitude", "");
+    updateField("longitude", "");
+    setGpsError(null);
+  }
+
+  const hasGps = Boolean(values.latitude && values.longitude);
 
   function validate(): boolean {
     const errors: Record<string, string> = {};
@@ -186,6 +220,63 @@ export default function LeadForm({
           </div>
         </section>
       )}
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-sm font-medium">Address</label>
+          <textarea
+            rows={3}
+            className={inputClass}
+            placeholder="Street, city, state, pin code"
+            value={values.address}
+            onChange={(e) => updateField("address", e.target.value)}
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1 block text-sm font-medium">GPS Location</label>
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-700">
+              {hasGps ? (
+                <p>
+                  Captured: {Number(values.latitude).toFixed(6)},{" "}
+                  {Number(values.longitude).toFixed(6)}
+                </p>
+              ) : (
+                <p className="text-slate-500">No GPS location added yet.</p>
+              )}
+              {hasGps && (
+                <div className="mt-1">
+                  <LocationDisplay
+                    latitude={values.latitude}
+                    longitude={values.longitude}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleCaptureGps()}
+                disabled={isCapturingGps || isSubmitting}
+                className="rounded-lg border border-teal-700 px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-60"
+              >
+                {isCapturingGps ? "Capturing..." : "Add GPS location"}
+              </button>
+              {hasGps && (
+                <button
+                  type="button"
+                  onClick={clearGps}
+                  disabled={isCapturingGps || isSubmitting}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          {gpsError && <p className="mt-1 text-sm text-red-600">{gpsError}</p>}
+        </div>
+      </section>
 
       <LeadItemsEditor
         items={values.items}

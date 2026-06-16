@@ -12,7 +12,11 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [  # noqa: F405
     "rest_framework.renderers.BrowsableAPIRenderer",
 ]
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Email — use backend/.env (Gmail SMTP or console backend)
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
 
 # Relaxed CORS for local frontend development
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)  # noqa: F405

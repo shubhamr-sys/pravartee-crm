@@ -1,9 +1,11 @@
 import re
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.attendance.utils import get_maps_url
 from apps.activities.services import log_lead_created, log_lead_updated
 
 from .assignment import user_can_assign_lead_to
@@ -13,6 +15,11 @@ from .models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, 
 DUE_SOON_DAYS = 3
 
 PHONE_PATTERN = re.compile(r"^[\d\s+\-().]{7,20}$")
+GPS_QUANTIZE = Decimal("0.000001")
+
+
+def _normalize_gps_coordinate(value) -> Decimal:
+    return Decimal(str(value)).quantize(GPS_QUANTIZE, rounding=ROUND_HALF_UP)
 
 
 class ProductCategorySerializer(serializers.ModelSerializer):
@@ -112,6 +119,9 @@ class LeadSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     followup_status = serializers.SerializerMethodField()
+    latest_price_pdf_url = serializers.SerializerMethodField()
+    has_pending_pricing_request = serializers.SerializerMethodField()
+    location_url = serializers.SerializerMethodField()
     items = LeadItemSerializer(many=True, required=False)
 
     class Meta:
@@ -123,6 +133,10 @@ class LeadSerializer(serializers.ModelSerializer):
             "contact_person",
             "phone",
             "email",
+            "address",
+            "latitude",
+            "longitude",
+            "location_url",
             "record_type",
             "next_followup_date",
             "followup_status",
@@ -134,6 +148,8 @@ class LeadSerializer(serializers.ModelSerializer):
             "stage",
             "stage_name",
             "is_active",
+            "latest_price_pdf_url",
+            "has_pending_pricing_request",
             "items",
             "created_at",
             "updated_at",
@@ -155,14 +171,74 @@ class LeadSerializer(serializers.ModelSerializer):
             return "due_soon"
         return "normal"
 
-    def validate_phone(self, value):
-        if value and not PHONE_PATTERN.match(value):
-            raise serializers.ValidationError(
-                "Enter a valid phone number (7–20 digits, spaces, +, -, (), . allowed).",
+    def get_latest_price_pdf_url(self, obj):
+        responded_requests = getattr(obj, "responded_pricing_requests", None)
+        if responded_requests is not None:
+            pricing_request = responded_requests[0] if responded_requests else None
+        else:
+            from apps.pricing.models import PricingRequestStatus
+
+            pricing_request = (
+                obj.pricing_requests.filter(status=PricingRequestStatus.RESPONDED)
+                .order_by("-responded_at")
+                .first()
             )
-        return value
+        if not pricing_request:
+            return None
+
+        file_field = (
+            pricing_request.generated_quotation_pdf or pricing_request.vendor_quote_pdf
+        )
+        if not file_field:
+            return None
+
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(file_field.url)
+        return file_field.url
+
+    def get_has_pending_pricing_request(self, obj):
+        pending_requests = getattr(obj, "pending_pricing_requests", None)
+        if pending_requests is not None:
+            return len(pending_requests) > 0
+
+        from apps.pricing.models import PricingRequestStatus
+
+        return obj.pricing_requests.filter(status=PricingRequestStatus.PENDING).exists()
+
+    def get_location_url(self, obj):
+        return get_maps_url(obj.latitude, obj.longitude)
+
+    def validate_latitude(self, value):
+        if value in (None, ""):
+            return None
+        try:
+            lat = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise serializers.ValidationError("Invalid latitude.") from exc
+        if lat < -90 or lat > 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90.")
+        return _normalize_gps_coordinate(lat)
+
+    def validate_longitude(self, value):
+        if value in (None, ""):
+            return None
+        try:
+            lng = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise serializers.ValidationError("Invalid longitude.") from exc
+        if lng < -180 or lng > 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180.")
+        return _normalize_gps_coordinate(lng)
 
     def validate(self, attrs):
+        latitude = attrs.get("latitude", getattr(self.instance, "latitude", None))
+        longitude = attrs.get("longitude", getattr(self.instance, "longitude", None))
+        if (latitude is None) ^ (longitude is None):
+            raise serializers.ValidationError(
+                "Both latitude and longitude are required for GPS location.",
+            )
+
         items = self.initial_data.get("items")
         is_create = self.instance is None
 
@@ -179,6 +255,13 @@ class LeadSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+    def validate_phone(self, value):
+        if value and not PHONE_PATTERN.match(value):
+            raise serializers.ValidationError(
+                "Enter a valid phone number (7–20 digits, spaces, +, -, (), . allowed).",
+            )
+        return value
 
     def validate_assigned_to(self, value):
         if value is None:

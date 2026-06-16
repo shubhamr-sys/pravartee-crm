@@ -1,0 +1,6 @@
+Pricing response received for {{ lead.customer_name }} ({{ lead.company_name|default:"—" }}).
+
+Submission mode: {{ submission_mode }}
+Status: {{ pricing_request.get_status_display }}
+
+Log in to Pravartee CRM to review vendor quote and generated quotation.

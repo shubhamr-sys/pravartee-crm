@@ -56,6 +56,7 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
     contact_person: form.contact_person.trim(),
     phone: form.phone.trim(),
     email: form.email.trim(),
+    address: form.address.trim(),
     stage: form.stage,
     notes: form.notes.trim(),
     record_type: form.record_type ?? "LEAD",
@@ -66,6 +67,13 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
   if (form.assigned_to) payload.assigned_to = form.assigned_to;
   if (form.next_followup_date) {
     payload.next_followup_date = form.next_followup_date;
+  }
+  if (form.latitude && form.longitude) {
+    payload.latitude = Number(form.latitude).toFixed(6);
+    payload.longitude = Number(form.longitude).toFixed(6);
+  } else {
+    payload.latitude = null;
+    payload.longitude = null;
   }
 
   return payload;
