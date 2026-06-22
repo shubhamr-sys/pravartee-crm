@@ -65,6 +65,11 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
 
   if (form.category) payload.category = form.category;
   if (form.assigned_to) payload.assigned_to = form.assigned_to;
+  if (form.gut_feeling_percent !== "" && form.gut_feeling_percent != null) {
+    payload.gut_feeling_percent = Number(form.gut_feeling_percent);
+  } else {
+    payload.gut_feeling_percent = null;
+  }
   if (form.next_followup_date) {
     payload.next_followup_date = form.next_followup_date;
   }

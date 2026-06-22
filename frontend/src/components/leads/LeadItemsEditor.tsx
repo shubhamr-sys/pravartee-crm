@@ -67,12 +67,32 @@ export default function LeadItemsEditor({
         ...current,
         [index]: { products, brands, models },
       }));
+      setSelectedLabels((current) => ({
+        ...current,
+        [index]: {
+          product:
+            item.product_name ||
+            products.find((row) => row.id === item.product)?.name ||
+            current[index]?.product,
+          brand:
+            item.brand_name ||
+            brands.find((row) => row.id === item.brand)?.name ||
+            current[index]?.brand,
+          model:
+            item.model_name ||
+            models.find((row) => row.id === item.model)?.name ||
+            current[index]?.model,
+        },
+      }));
     },
     [],
   );
 
   const itemsMastersKey = items
-    .map((item) => `${item.category}|${item.product}|${item.brand}`)
+    .map(
+      (item) =>
+        `${item.id ?? ""}|${item.category}|${item.product}|${item.brand}|${item.model}|${item.product_name ?? ""}|${item.brand_name ?? ""}|${item.model_name ?? ""}`,
+    )
     .join(";");
 
   useEffect(() => {
@@ -303,7 +323,7 @@ export default function LeadItemsEditor({
                 <CategorySelectField
                   id={`lead-item-category-${index}`}
                   label="Category"
-                  value={item.category}
+                  value={item.category ? String(item.category) : ""}
                   onChange={(category) => updateItem(index, { category })}
                   categories={categories}
                   emptyOption={{ value: "", label: "Select category" }}
@@ -313,7 +333,7 @@ export default function LeadItemsEditor({
 
                 <SearchableSelect
                   label="Product"
-                  value={item.product}
+                  value={item.product ? String(item.product) : ""}
                   valueLabel={selectedLabels[index]?.product}
                   onChange={(product) => {
                     const label = masters.products.find((row) => row.id === product)?.name;
@@ -343,7 +363,7 @@ export default function LeadItemsEditor({
 
                 <SearchableSelect
                   label="Brand"
-                  value={item.brand}
+                  value={item.brand ? String(item.brand) : ""}
                   valueLabel={selectedLabels[index]?.brand}
                   onChange={(brand) => {
                     const label = masters.brands.find((row) => row.id === brand)?.name;
@@ -372,7 +392,7 @@ export default function LeadItemsEditor({
 
                 <SearchableSelect
                   label="Model"
-                  value={item.model}
+                  value={item.model ? String(item.model) : ""}
                   valueLabel={selectedLabels[index]?.model}
                   onChange={(model) => {
                     const label = masters.models.find((row) => row.id === model)?.name;

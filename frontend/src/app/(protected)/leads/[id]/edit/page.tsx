@@ -11,6 +11,7 @@ import {
   LoadingState,
 } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
+import { leadToFormData } from "@/lib/leadFormUtils";
 import {
   fetchAssignableUsers,
   fetchCategories,
@@ -25,31 +26,6 @@ import type {
   LeadStage,
   ProductCategory,
 } from "@/types/lead";
-import { emptyLeadItem, leadItemToFormData } from "@/types/lead";
-
-function leadToFormData(lead: Lead): LeadFormData {
-  const items =
-    lead.items && lead.items.length > 0
-      ? lead.items.map(leadItemToFormData)
-      : [emptyLeadItem(lead.category || "")];
-
-  return {
-    customer_name: lead.customer_name,
-    company_name: lead.company_name,
-    contact_person: lead.contact_person,
-    phone: lead.phone,
-    email: lead.email,
-    address: lead.address || "",
-    latitude: lead.latitude ? Number(lead.latitude).toFixed(6) : "",
-    longitude: lead.longitude ? Number(lead.longitude).toFixed(6) : "",
-    category: lead.category || "",
-    stage: lead.stage,
-    notes: lead.notes,
-    assigned_to: lead.assigned_to || "",
-    record_type: lead.record_type || "LEAD",
-    items,
-  };
-}
 
 export default function EditLeadPage() {
   const params = useParams<{ id: string }>();
@@ -77,9 +53,7 @@ export default function EditLeadPage() {
         fetchCategories(),
       ]);
       setLead(leadData);
-      setInitialValues(
-        leadToFormData(leadData),
-      );
+      setInitialValues(leadToFormData(leadData));
       setStages(stageData);
       setCategories(categoryData);
 
@@ -108,7 +82,6 @@ export default function EditLeadPage() {
     setSubmitError(null);
 
     const submitValues = { ...values };
-    delete submitValues.next_followup_date;
     if (!canAssign) {
       delete submitValues.assigned_to;
     }
@@ -156,13 +129,14 @@ export default function EditLeadPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Edit Lead</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Update products, stage, notes
+          Update customer details, products, stage, notes
           {canAssign ? ", and assignment" : ""} for {lead.customer_name}.
         </p>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <LeadForm
+          key={`${lead.id}-${lead.updated_at}`}
           mode="edit"
           initialValues={initialValues}
           stages={stages}

@@ -251,6 +251,21 @@ export default function LeadDetailPage() {
           <h2 className="text-lg font-semibold text-slate-900">Lead Information</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <DetailItem label="Stage" value={lead.stage_name} />
+            <div className="rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Gut Feeling
+              </p>
+              <div className="mt-1">
+                {lead.gut_feeling_percent != null &&
+                Number.isFinite(Number(lead.gut_feeling_percent)) ? (
+                  <span className="inline-flex rounded-full bg-teal-100 px-2.5 py-0.5 text-sm font-semibold text-teal-800">
+                    {Number(lead.gut_feeling_percent)}%
+                  </span>
+                ) : (
+                  <p className="text-sm text-slate-900">—</p>
+                )}
+              </div>
+            </div>
             <DetailItem label="Category" value={lead.category_name} />
             <DetailItem label="Assigned To" value={lead.assigned_to_name} />
             <div className="rounded-lg bg-slate-50 px-4 py-3">

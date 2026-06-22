@@ -84,6 +84,12 @@ def log_stage_change(
     )
 
 
+def _format_gut_feeling(percent) -> str:
+    if percent is None:
+        return "None"
+    return f"{percent}%"
+
+
 def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
     """Record activities for meaningful field changes on an existing lead."""
     changed = False
@@ -124,6 +130,17 @@ def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
             old_value=old_followup or "None",
             new_value=new_followup or "None",
             comments="Follow-up date updated.",
+        )
+        changed = True
+
+    if previous.gut_feeling_percent != lead.gut_feeling_percent:
+        log_lead_activity(
+            lead,
+            user,
+            ActivityType.GUT_FEELING_UPDATED,
+            old_value=_format_gut_feeling(previous.gut_feeling_percent),
+            new_value=_format_gut_feeling(lead.gut_feeling_percent),
+            comments="Gut feeling updated.",
         )
         changed = True
 

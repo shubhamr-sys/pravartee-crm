@@ -13,6 +13,7 @@ from .lead_item_services import replace_lead_items, sync_lead_from_items
 from .models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 
 DUE_SOON_DAYS = 3
+GUT_FEELING_VALUES = list(range(10, 101, 10))
 
 PHONE_PATTERN = re.compile(r"^[\d\s+\-().]{7,20}$")
 GPS_QUANTIZE = Decimal("0.000001")
@@ -147,6 +148,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "category_name",
             "stage",
             "stage_name",
+            "gut_feeling_percent",
             "is_active",
             "has_pricing_response",
             "has_pending_pricing_request",
@@ -243,6 +245,15 @@ class LeadSerializer(serializers.ModelSerializer):
         if value and not PHONE_PATTERN.match(value):
             raise serializers.ValidationError(
                 "Enter a valid phone number (7–20 digits, spaces, +, -, (), . allowed).",
+            )
+        return value
+
+    def validate_gut_feeling_percent(self, value):
+        if value is None:
+            return value
+        if value not in GUT_FEELING_VALUES:
+            raise serializers.ValidationError(
+                "Gut feeling must be 10%–100% in steps of 10%.",
             )
         return value
 

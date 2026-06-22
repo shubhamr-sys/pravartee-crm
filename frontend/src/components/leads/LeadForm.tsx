@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import LocationDisplay from "@/components/attendance/LocationDisplay";
 import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
 import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
 import { GeolocationError, getCurrentPosition } from "@/lib/geolocation";
+import { GUT_FEELING_PERCENT_OPTIONS } from "@/lib/gutFeelingOptions";
 import {
   getRecordTypeLabel,
   type AssignableUser,
@@ -38,6 +39,15 @@ function formatGpsCoordinate(value: number): string {
   return value.toFixed(6);
 }
 
+function gutFeelingSelectValue(value: LeadFormData["gut_feeling_percent"]): string {
+  if (value === "" || value == null) return "";
+  return String(value);
+}
+
+function selectIdValue(value: string | undefined | null): string {
+  return value ? String(value) : "";
+}
+
 export default function LeadForm({
   mode,
   initialValues,
@@ -54,6 +64,10 @@ export default function LeadForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValues(initialValues);
+  }, [initialValues]);
 
   function updateField<K extends keyof LeadFormData>(key: K, value: LeadFormData[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -163,63 +177,65 @@ export default function LeadForm({
         </div>
       )}
 
-      {mode === "create" && (
-        <section className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium">Customer Name *</label>
-            <input
-              className={inputClass}
-              value={values.customer_name}
-              onChange={(e) => updateField("customer_name", e.target.value)}
-            />
-            {fieldErrors.customer_name && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.customer_name}</p>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Company Name *</label>
-            <input
-              className={inputClass}
-              value={values.company_name}
-              onChange={(e) => updateField("company_name", e.target.value)}
-            />
-            {fieldErrors.company_name && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.company_name}</p>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Contact Person</label>
-            <input
-              className={inputClass}
-              value={values.contact_person}
-              onChange={(e) => updateField("contact_person", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Phone</label>
-            <input
-              className={inputClass}
-              value={values.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-            />
-            {fieldErrors.phone && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
-            )}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Email</label>
-            <input
-              type="email"
-              className={inputClass}
-              value={values.email}
-              onChange={(e) => updateField("email", e.target.value)}
-            />
-            {fieldErrors.email && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-            )}
-          </div>
-        </section>
-      )}
+      <section className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Customer Name{mode === "create" ? " *" : ""}
+          </label>
+          <input
+            className={inputClass}
+            value={values.customer_name}
+            onChange={(e) => updateField("customer_name", e.target.value)}
+          />
+          {fieldErrors.customer_name && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.customer_name}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Company Name{mode === "create" ? " *" : ""}
+          </label>
+          <input
+            className={inputClass}
+            value={values.company_name}
+            onChange={(e) => updateField("company_name", e.target.value)}
+          />
+          {fieldErrors.company_name && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.company_name}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Contact Person</label>
+          <input
+            className={inputClass}
+            value={values.contact_person}
+            onChange={(e) => updateField("contact_person", e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Phone</label>
+          <input
+            className={inputClass}
+            value={values.phone}
+            onChange={(e) => updateField("phone", e.target.value)}
+          />
+          {fieldErrors.phone && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Email</label>
+          <input
+            type="email"
+            className={inputClass}
+            value={values.email}
+            onChange={(e) => updateField("email", e.target.value)}
+          />
+          {fieldErrors.email && (
+            <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+          )}
+        </div>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
@@ -290,12 +306,12 @@ export default function LeadForm({
           <label className="mb-1 block text-sm font-medium">Stage *</label>
           <select
             className={inputClass}
-            value={values.stage}
+            value={selectIdValue(values.stage)}
             onChange={(e) => updateField("stage", e.target.value)}
           >
             <option value="">Select stage</option>
             {stages.map((item) => (
-              <option key={item.id} value={item.id}>
+              <option key={item.id} value={String(item.id)}>
                 {item.name}
               </option>
             ))}
@@ -305,17 +321,38 @@ export default function LeadForm({
           )}
         </div>
 
+        <div>
+          <label className="mb-1 block text-sm font-medium">Gut Feeling</label>
+          <select
+            className={inputClass}
+            value={gutFeelingSelectValue(values.gut_feeling_percent)}
+            onChange={(e) =>
+              updateField(
+                "gut_feeling_percent",
+                e.target.value ? Number(e.target.value) : "",
+              )
+            }
+          >
+            <option value="">Not set</option>
+            {GUT_FEELING_PERCENT_OPTIONS.map((percent) => (
+              <option key={percent} value={String(percent)}>
+                {percent}%
+              </option>
+            ))}
+          </select>
+        </div>
+
         {canAssign && (
           <div>
             <label className="mb-1 block text-sm font-medium">Assigned To</label>
             <select
               className={inputClass}
-              value={values.assigned_to || ""}
+              value={selectIdValue(values.assigned_to)}
               onChange={(e) => updateField("assigned_to", e.target.value)}
             >
               <option value="">Unassigned</option>
               {assignableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
+                <option key={user.id} value={String(user.id)}>
                   {user.first_name} {user.last_name} ({user.username})
                 </option>
               ))}

@@ -13,7 +13,6 @@ import {
   fetchAssignableUsers,
   fetchCategories,
   fetchStages,
-  toLeadApiPayload,
 } from "@/lib/leadsService";
 import type {
   AssignableUser,
@@ -34,6 +33,7 @@ const emptyForm: LeadFormData = {
   longitude: "",
   category: "",
   stage: "",
+  gut_feeling_percent: "",
   notes: "",
   assigned_to: "",
   record_type: "LEAD",
@@ -91,18 +91,12 @@ export default function NewLeadPage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const payload = toLeadApiPayload(values);
+      const submitValues = { ...values };
       if (!canAssign) {
-        delete payload.assigned_to;
-      } else if (!payload.assigned_to) {
-        delete payload.assigned_to;
+        delete submitValues.assigned_to;
       }
 
-      const lead = await createLead({
-        ...payload,
-        customer_name: values.customer_name,
-        stage: values.stage,
-      });
+      const lead = await createLead(submitValues);
       router.push(`/leads/${lead.id}?created=1`);
     } catch (error) {
       if (isAxiosError(error)) {
