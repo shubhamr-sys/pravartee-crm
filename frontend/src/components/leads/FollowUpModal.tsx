@@ -82,7 +82,7 @@ export default function FollowUpModal({
         <form onSubmit={(event) => void handleSubmit(event)} className="mt-4 space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Follow-up Date
+              Follow-up Date *
             </label>
             <input
               type="date"
@@ -117,7 +117,7 @@ export default function FollowUpModal({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Assigned To
+              Assigned To *
             </label>
             <select
               className={inputClass}

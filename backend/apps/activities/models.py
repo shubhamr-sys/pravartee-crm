@@ -12,6 +12,8 @@ class ActivityType(models.TextChoices):
     LEAD_UPDATED = "LEAD_UPDATED", "Lead Updated"
     STAGE_CHANGED = "STAGE_CHANGED", "Stage Changed"
     FOLLOWUP_UPDATED = "FOLLOWUP_UPDATED", "Follow-up Updated"
+    FOLLOWUP_SCHEDULED = "FOLLOWUP_SCHEDULED", "Follow-up Scheduled"
+    FOLLOWUP_COMPLETED = "FOLLOWUP_COMPLETED", "Follow-up Completed"
     NOTE_ADDED = "NOTE_ADDED", "Note Added"
     LEAD_ASSIGNED = "LEAD_ASSIGNED", "Lead Assigned"
     LEAD_CLOSED_WON = "LEAD_CLOSED_WON", "Lead Closed Won"

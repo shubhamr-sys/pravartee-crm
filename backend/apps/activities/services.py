@@ -154,3 +154,66 @@ def log_price_requested(lead: Lead, user: User | None) -> LeadActivity:
         ActivityType.PRICE_REQUESTED,
         comments="Asked for price.",
     )
+
+
+def _followup_assignee_name(followup) -> str:
+    assignee = followup.assigned_to
+    return assignee.get_full_name() or assignee.username
+
+
+def _format_followup_date(value) -> str:
+    if not value:
+        return "None"
+    return value.isoformat()
+
+
+def log_followup_scheduled(
+    followup,
+    user: User | None,
+    previous_next_date=None,
+) -> LeadActivity:
+    lead = followup.lead
+    remarks = f" Remarks: {followup.remarks}" if followup.remarks else ""
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_SCHEDULED,
+        old_value=_format_followup_date(previous_next_date),
+        new_value=_format_followup_date(lead.next_followup_date),
+        comments=(
+            f"Follow-up scheduled: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Assigned to {_followup_assignee_name(followup)}."
+            f"{remarks}"
+        ),
+    )
+
+
+def log_followup_modified(followup, user: User | None) -> LeadActivity:
+    lead = followup.lead
+    remarks = f" Remarks: {followup.remarks}" if followup.remarks else ""
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_UPDATED,
+        new_value=followup.followup_date.isoformat(),
+        comments=(
+            f"Follow-up updated: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Assigned to {_followup_assignee_name(followup)}."
+            f"{remarks}"
+        ),
+    )
+
+
+def log_followup_completed(followup, user: User | None) -> LeadActivity:
+    lead = followup.lead
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_COMPLETED,
+        new_value=followup.followup_date.isoformat(),
+        comments=(
+            f"Follow-up completed: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Action: {followup.action_taken}"
+            f"{f' Remarks: {followup.remarks}' if followup.remarks else ''}"
+        ),
+    )

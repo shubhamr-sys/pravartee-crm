@@ -1,7 +1,7 @@
 """
 Development settings for Pravartee CRM.
 """
-from decouple import config
+from decouple import Csv, config
 
 from .base import *  # noqa: F403
 
@@ -20,5 +20,7 @@ EMAIL_BACKEND = config(
 
 # Relaxed CORS for local frontend development
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)  # noqa: F405
+
+CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())  # noqa: F405
 
 INTERNAL_IPS = ["127.0.0.1", "localhost"]

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.accounts.access import user_can_access_lead
+from apps.activities.services import log_followup_modified
 from apps.leads.followup_services import sync_lead_next_followup_date
 from apps.leads.models import FollowUp, FollowUpStatus, FollowUpType, Lead, StageHistory
 
@@ -34,6 +35,7 @@ class FollowUpSerializer(serializers.ModelSerializer):
             "followup_type",
             "followup_type_display",
             "remarks",
+            "action_taken",
             "status",
             "status_display",
             "completed_at",
@@ -99,7 +101,20 @@ class FollowUpUpdateSerializer(serializers.ModelSerializer):
             instance.completed_at = timezone.now()
         followup = super().update(instance, validated_data)
         sync_lead_next_followup_date(followup.lead)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated:
+            log_followup_modified(followup, user)
         return followup
+
+
+class FollowUpCompleteSerializer(serializers.Serializer):
+    remarks = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    action_taken = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
 
 
 class StageHistorySerializer(serializers.ModelSerializer):

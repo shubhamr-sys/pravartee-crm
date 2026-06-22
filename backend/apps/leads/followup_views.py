@@ -7,7 +7,13 @@ from rest_framework.views import APIView
 
 from apps.accounts.access import followups_for_user, user_can_access_lead
 from apps.accounts.permissions import CanAccessLead, IsAuthenticatedCRMUser
+from apps.activities.services import (
+    log_followup_completed,
+    log_followup_modified,
+    log_followup_scheduled,
+)
 from apps.leads.followup_serializers import (
+    FollowUpCompleteSerializer,
     FollowUpCreateSerializer,
     FollowUpSerializer,
     FollowUpUpdateSerializer,
@@ -42,6 +48,7 @@ class LeadFollowUpListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         lead = self.get_lead()
+        previous_next_date = lead.next_followup_date
         assigned_to = serializer.validated_data.get("assigned_to")
         if assigned_to is None:
             assigned_to = lead.assigned_to or self.request.user
@@ -52,6 +59,7 @@ class LeadFollowUpListCreateView(generics.ListCreateAPIView):
             status=FollowUpStatus.PENDING,
         )
         sync_lead_next_followup_date(lead)
+        log_followup_scheduled(followup, self.request.user, previous_next_date)
 
 
 class LeadFollowUpDetailView(generics.RetrieveUpdateAPIView):
@@ -84,10 +92,23 @@ class LeadFollowUpCompleteView(APIView):
                 {"detail": "Follow-up is already completed."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        serializer = FollowUpCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        followup.remarks = serializer.validated_data["remarks"]
+        followup.action_taken = serializer.validated_data["action_taken"]
         followup.status = FollowUpStatus.COMPLETED
         followup.completed_at = timezone.now()
-        followup.save(update_fields=["status", "completed_at", "updated_at"])
+        followup.save(
+            update_fields=[
+                "remarks",
+                "action_taken",
+                "status",
+                "completed_at",
+                "updated_at",
+            ]
+        )
         sync_lead_next_followup_date(lead)
+        log_followup_completed(followup, request.user)
         return Response(FollowUpSerializer(followup).data)
 
 

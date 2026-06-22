@@ -25,7 +25,7 @@ export default function ActivityFeedItem({
   return (
     <div className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
       <span className="text-lg leading-none" aria-hidden>
-        {getActivityIcon(activity.activity_type)}
+        {getActivityIcon(activity.activity_type, activity.activity_label)}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

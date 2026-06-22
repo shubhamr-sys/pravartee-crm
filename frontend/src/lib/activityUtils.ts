@@ -5,6 +5,8 @@ const ACTIVITY_ICONS: Record<string, string> = {
   LEAD_UPDATED: "✏️",
   STAGE_CHANGED: "📊",
   FOLLOWUP_UPDATED: "📅",
+  FOLLOWUP_SCHEDULED: "📅",
+  FOLLOWUP_COMPLETED: "✅",
   NOTE_ADDED: "📝",
   LEAD_ASSIGNED: "👤",
   LEAD_CLOSED_WON: "🏆",
@@ -15,8 +17,28 @@ const ACTIVITY_ICONS: Record<string, string> = {
   QUOTATION_GENERATED: "📄",
 };
 
-export function getActivityIcon(activityType: string): string {
-  return ACTIVITY_ICONS[activityType] ?? "•";
+export function getActivityIcon(
+  activityType: string,
+  activityLabel?: string,
+): string {
+  if (ACTIVITY_ICONS[activityType]) {
+    return ACTIVITY_ICONS[activityType];
+  }
+
+  if (activityType.startsWith("FOLLOWUP_")) {
+    return activityType === "FOLLOWUP_COMPLETED" ? "✅" : "📅";
+  }
+
+  const labelIcons: Record<string, string> = {
+    "Follow-up Scheduled": "📅",
+    "Follow-up Updated": "📅",
+    "Follow-up Completed": "✅",
+  };
+  if (activityLabel && labelIcons[activityLabel]) {
+    return labelIcons[activityLabel];
+  }
+
+  return "•";
 }
 
 export function getActivityActor(activity: LeadActivity): string | null {
