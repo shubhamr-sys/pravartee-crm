@@ -70,6 +70,7 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
     requested_by_name = serializers.SerializerMethodField()
     vendor_quote_url = serializers.SerializerMethodField()
     generated_quotation_url = serializers.SerializerMethodField()
+    line_items = PricingResponseLineItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = PricingRequest
@@ -86,6 +87,7 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
             "response_remarks",
             "vendor_quote_url",
             "generated_quotation_url",
+            "line_items",
         ]
         read_only_fields = fields
 
@@ -110,7 +112,6 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
 
 
 class PricingRequestDetailSerializer(PricingRequestListSerializer):
-    line_items = PricingResponseLineItemSerializer(many=True, read_only=True)
     lead_line_items = PricingLineItemReadSerializer(
         source="lead.items",
         many=True,
@@ -119,7 +120,6 @@ class PricingRequestDetailSerializer(PricingRequestListSerializer):
 
     class Meta(PricingRequestListSerializer.Meta):
         fields = PricingRequestListSerializer.Meta.fields + [
-            "line_items",
             "lead_line_items",
             "token",
         ]
@@ -150,14 +150,20 @@ class PublicPricingRequestSerializer(serializers.ModelSerializer):
 
 class PublicPricingSubmitSerializer(serializers.Serializer):
     response_remarks = serializers.CharField(required=False, allow_blank=True, default="")
-    vendor_quote_pdf = serializers.FileField(required=False, allow_null=True)
     line_items = serializers.ListField(
         child=serializers.DictField(),
-        required=False,
-        allow_empty=True,
+        required=True,
+        allow_empty=False,
     )
 
-    def validate_vendor_quote_pdf(self, value):
-        if value and not value.name.lower().endswith(".pdf"):
-            raise serializers.ValidationError("Vendor quote must be a PDF file.")
+    def validate_line_items(self, value):
+        if not value:
+            raise serializers.ValidationError("Enter at least one unit price.")
+        priced = [
+            row
+            for row in value
+            if row.get("unit_price") not in (None, "")
+        ]
+        if not priced:
+            raise serializers.ValidationError("Enter at least one unit price.")
         return value

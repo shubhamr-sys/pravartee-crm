@@ -18,7 +18,9 @@ from .models import (
     PricingResponseLineItem,
     PricingSubmissionMode,
 )
-from .emails import send_pricing_request_email, send_pricing_response_notification
+
+
+def create_pricing_request(lead: Lead, user) -> PricingRequest:
     """Create pricing request, log activity, and notify recipients."""
     if not lead.items.exists():
         raise ValueError("Lead must have at least one product line item.")

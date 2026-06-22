@@ -17,17 +17,11 @@ import { DetailSkeleton } from "@/components/leads/LoadingSkeleton";
 import { ErrorState } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
 import { fetchLeadActivities } from "@/lib/activityService";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
 import { getUomLabel } from "@/lib/leadItemUom";
 import type { Lead } from "@/types/lead";
-import type { PricingRequest } from "@/types/pricing";
-
-function pricingPdfUrl(request: PricingRequest | null | undefined): string | null {
-  if (!request) return null;
-  return request.generated_quotation_url || request.vendor_quote_url || null;
-}
 
 function DetailItem({
   label,
@@ -60,7 +54,7 @@ export default function LeadDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [quotationReady, setQuotationReady] = useState<PricingRequest | null>(null);
+  const [pricingReceivedBanner, setPricingReceivedBanner] = useState(false);
 
   const showSavedBanner =
     searchParams.get("saved") === "1" || searchParams.get("created") === "1";
@@ -128,8 +122,7 @@ export default function LeadDetailPage() {
     return <ErrorState message={error || "Unable to load lead."} onRetry={loadLead} />;
   }
 
-  const pricePdfUrl =
-    pricingPdfUrl(quotationReady) ?? lead.latest_price_pdf_url ?? null;
+  const showPricingLink = lead.has_pricing_response;
 
   return (
     <div className="space-y-6">
@@ -150,14 +143,12 @@ export default function LeadDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {pricePdfUrl && (
+          {showPricingLink && (
             <a
-              href={pricePdfUrl}
-              target="_blank"
-              rel="noreferrer"
+              href="#pricing"
               className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800"
             >
-              View price
+              View pricing
             </a>
           )}
           <Link
@@ -191,28 +182,22 @@ export default function LeadDetailPage() {
         </div>
       )}
 
-      {quotationReady && pricingPdfUrl(quotationReady) && (
+      {pricingReceivedBanner && (
         <div className="flex flex-col gap-3 rounded-lg border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            <span className="font-semibold">Pricing received.</span>{" "}
-            {quotationReady.generated_quotation_url
-              ? "A quotation PDF has been generated and is ready to download."
-              : "A vendor quote PDF has been uploaded."}
+            <span className="font-semibold">Pricing received.</span> Unit prices are
+            available in the Pricing section below.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <a
-              href={pricingPdfUrl(quotationReady)!}
-              target="_blank"
-              rel="noreferrer"
+              href="#pricing"
               className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
             >
-              {quotationReady.generated_quotation_url
-                ? "Open Quotation PDF"
-                : "Open Vendor PDF"}
+              View pricing
             </a>
             <button
               type="button"
-              onClick={() => setQuotationReady(null)}
+              onClick={() => setPricingReceivedBanner(false)}
               className="text-sm font-medium text-teal-800 hover:text-teal-900"
             >
               Dismiss
@@ -330,17 +315,14 @@ export default function LeadDetailPage() {
 
       <LeadPricingSection
         leadId={lead.id}
-        onQuotationReady={(request) => {
-          setQuotationReady(request);
+        onPricingReady={() => {
+          setPricingReceivedBanner(true);
           setLead((current) =>
             current
               ? {
                   ...current,
                   has_pending_pricing_request: false,
-                  latest_price_pdf_url:
-                    request.generated_quotation_url ||
-                    request.vendor_quote_url ||
-                    current.latest_price_pdf_url,
+                  has_pricing_response: true,
                 }
               : current,
           );

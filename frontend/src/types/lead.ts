@@ -68,7 +68,7 @@ export interface Lead {
   stage: string;
   stage_name: string;
   is_active: boolean;
-  latest_price_pdf_url?: string | null;
+  has_pricing_response?: boolean;
   has_pending_pricing_request?: boolean;
   items?: LeadItem[];
   created_at: string;

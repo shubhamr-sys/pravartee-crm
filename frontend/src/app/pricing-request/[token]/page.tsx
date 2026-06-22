@@ -55,7 +55,6 @@ export default function PublicPricingRequestPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [responseRemarks, setResponseRemarks] = useState("");
-  const [vendorPdf, setVendorPdf] = useState<File | null>(null);
   const [lineInputs, setLineInputs] = useState<Record<string, ManualPricingLineInput>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -90,8 +89,8 @@ export default function PublicPricingRequestPage() {
     if (!request || request.status === "RESPONDED") return;
 
     const line_items = Object.values(lineInputs).filter((row) => row.unit_price.trim());
-    if (!vendorPdf && line_items.length === 0) {
-      setError("Upload a vendor PDF or enter at least one unit price.");
+    if (line_items.length === 0) {
+      setError("Enter at least one unit price.");
       return;
     }
 
@@ -100,7 +99,6 @@ export default function PublicPricingRequestPage() {
     try {
       const updated = await submitPublicPricing(token, {
         response_remarks: responseRemarks,
-        vendor_quote_pdf: vendorPdf,
         line_items,
       });
       setRequest(updated);
@@ -202,19 +200,10 @@ export default function PublicPricingRequestPage() {
         {!isResponded && (
           <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700">
-                Vendor Quotation PDF
-              </label>
-              <input
-                type="file"
-                accept="application/pdf"
-                className="mt-2 block w-full text-sm"
-                onChange={(e) => setVendorPdf(e.target.files?.[0] ?? null)}
-              />
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-slate-700">Manual pricing (optional)</h3>
+              <h3 className="text-sm font-medium text-slate-700">Unit prices *</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Enter the price for each product line. At least one unit price is required.
+              </p>
               <div className="mt-3 space-y-3">
                 {request.line_items.map((item) => (
                   <div

@@ -119,7 +119,7 @@ class LeadSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     followup_status = serializers.SerializerMethodField()
-    latest_price_pdf_url = serializers.SerializerMethodField()
+    has_pricing_response = serializers.SerializerMethodField()
     has_pending_pricing_request = serializers.SerializerMethodField()
     location_url = serializers.SerializerMethodField()
     items = LeadItemSerializer(many=True, required=False)
@@ -148,7 +148,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "stage",
             "stage_name",
             "is_active",
-            "latest_price_pdf_url",
+            "has_pricing_response",
             "has_pending_pricing_request",
             "items",
             "created_at",
@@ -171,31 +171,14 @@ class LeadSerializer(serializers.ModelSerializer):
             return "due_soon"
         return "normal"
 
-    def get_latest_price_pdf_url(self, obj):
-        responded_requests = getattr(obj, "responded_pricing_requests", None)
-        if responded_requests is not None:
-            pricing_request = responded_requests[0] if responded_requests else None
-        else:
-            from apps.pricing.models import PricingRequestStatus
+    def get_has_pricing_response(self, obj):
+        from apps.pricing.models import PricingRequestStatus, PricingResponseLineItem
 
-            pricing_request = (
-                obj.pricing_requests.filter(status=PricingRequestStatus.RESPONDED)
-                .order_by("-responded_at")
-                .first()
-            )
-        if not pricing_request:
-            return None
-
-        file_field = (
-            pricing_request.generated_quotation_pdf or pricing_request.vendor_quote_pdf
-        )
-        if not file_field:
-            return None
-
-        request = self.context.get("request")
-        if request:
-            return request.build_absolute_uri(file_field.url)
-        return file_field.url
+        return PricingResponseLineItem.objects.filter(
+            pricing_request__lead=obj,
+            pricing_request__status=PricingRequestStatus.RESPONDED,
+            unit_price__isnull=False,
+        ).exists()
 
     def get_has_pending_pricing_request(self, obj):
         pending_requests = getattr(obj, "pending_pricing_requests", None)

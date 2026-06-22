@@ -69,6 +69,36 @@ class FollowUpTestCase(TestCase):
             ).exists(),
         )
 
+    def test_list_followups_pending_first_then_by_date(self):
+        completed_early = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() - timedelta(days=1),
+            status=FollowUpStatus.COMPLETED,
+            created_by=self.salesperson,
+        )
+        pending_later = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() + timedelta(days=1),
+            status=FollowUpStatus.PENDING,
+            created_by=self.salesperson,
+        )
+        completed_later = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() + timedelta(days=2),
+            status=FollowUpStatus.COMPLETED,
+            created_by=self.salesperson,
+        )
+
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get(f"/api/v1/leads/{self.lead.id}/follow-ups/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [row["id"] for row in response.data]
+        self.assertEqual(ids[0], str(pending_later.id))
+        self.assertEqual(ids[1:], [str(completed_early.id), str(completed_later.id)])
+
     def test_complete_followup_logs_activity(self):
         followup = FollowUp.objects.create(
             lead=self.lead,

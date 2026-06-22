@@ -19,7 +19,7 @@ from apps.leads.followup_serializers import (
     FollowUpUpdateSerializer,
     StageHistorySerializer,
 )
-from apps.leads.followup_services import sync_lead_next_followup_date
+from apps.leads.followup_services import order_followups_for_display, sync_lead_next_followup_date
 from apps.leads.models import FollowUp, FollowUpStatus, Lead, StageHistory
 
 
@@ -39,7 +39,9 @@ class LeadFollowUpListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         lead = self.get_lead()
-        return followups_for_user(self.request.user).filter(lead=lead)
+        return order_followups_for_display(
+            followups_for_user(self.request.user).filter(lead=lead)
+        )
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -70,7 +72,9 @@ class LeadFollowUpDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         lead = self.get_lead()
-        return followups_for_user(self.request.user).filter(lead=lead)
+        return order_followups_for_display(
+            followups_for_user(self.request.user).filter(lead=lead)
+        )
 
     def get_serializer_class(self):
         if self.request.method in ("PUT", "PATCH"):

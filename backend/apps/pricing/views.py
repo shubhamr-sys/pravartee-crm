@@ -127,7 +127,6 @@ class PublicPricingSubmitView(APIView):
         try:
             updated = submit_pricing_response(
                 pricing_request,
-                vendor_quote_pdf=data.get("vendor_quote_pdf"),
                 line_items_data=data.get("line_items"),
                 response_remarks=data.get("response_remarks", ""),
             )
