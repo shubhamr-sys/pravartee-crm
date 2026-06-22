@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { FOLLOW_UP_TYPE_OPTIONS, type FollowUp, type FollowUpFormData } from "@/types/followup";
+import { FOLLOW_UP_TYPE_OPTIONS, type FollowUpFormData } from "@/types/followup";
 import type { AssignableUser } from "@/types/lead";
 
 const inputClass =
@@ -13,7 +13,6 @@ interface FollowUpModalProps {
   isOpen: boolean;
   isSubmitting?: boolean;
   users: AssignableUser[];
-  initial?: FollowUp | null;
   defaultAssignedTo?: string;
   onClose: () => void;
   onSubmit: (values: FollowUpFormData) => Promise<void>;
@@ -23,7 +22,6 @@ export default function FollowUpModal({
   isOpen,
   isSubmitting = false,
   users,
-  initial = null,
   defaultAssignedTo = "",
   onClose,
   onSubmit,
@@ -44,13 +42,13 @@ export default function FollowUpModal({
   useEffect(() => {
     if (!isOpen) return;
     setValues({
-      assigned_to: initial?.assigned_to ?? defaultAssignedTo,
-      followup_date: initial?.followup_date ?? "",
-      followup_type: initial?.followup_type ?? "CALL",
-      remarks: initial?.remarks ?? "",
+      assigned_to: defaultAssignedTo,
+      followup_date: "",
+      followup_type: "CALL",
+      remarks: "",
     });
     setError(null);
-  }, [isOpen, initial, defaultAssignedTo]);
+  }, [isOpen, defaultAssignedTo]);
 
   if (!isOpen || !mounted) return null;
 
@@ -76,9 +74,7 @@ export default function FollowUpModal({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">
-          {initial ? "Edit Follow-up" : "Add Follow-up"}
-        </h2>
+        <h2 className="text-lg font-semibold text-slate-900">Add Follow-up</h2>
         <form onSubmit={(event) => void handleSubmit(event)} className="mt-4 space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -162,7 +158,7 @@ export default function FollowUpModal({
               disabled={isSubmitting}
               className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
             >
-              {isSubmitting ? "Saving..." : initial ? "Update" : "Add Follow-up"}
+              {isSubmitting ? "Saving..." : "Add Follow-up"}
             </button>
           </div>
         </form>

@@ -50,3 +50,10 @@
     opacity: 1;
   }
 }
+
+/* Tailwind only emits bg-* utilities used in source; stale bundles may reference bg-green-700. */
+@layer utilities {
+  .bg-green-700 {
+    background-color: var(--color-green-700);
+  }
+}

@@ -79,17 +79,41 @@ class FollowUpTestCase(TestCase):
         self.client.force_authenticate(user=self.salesperson)
         response = self.client.post(
             f"/api/v1/leads/{self.lead.id}/follow-ups/{followup.id}/complete/",
+            {
+                "remarks": "Customer agreed to review quotation.",
+                "action_taken": "Called and discussed requirements.",
+            },
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         followup.refresh_from_db()
         self.assertEqual(followup.status, FollowUpStatus.COMPLETED)
         self.assertIsNotNone(followup.completed_at)
+        self.assertEqual(followup.remarks, "Customer agreed to review quotation.")
+        self.assertEqual(followup.action_taken, "Called and discussed requirements.")
         self.assertTrue(
             LeadActivity.objects.filter(
                 lead=self.lead,
                 activity_type=ActivityType.FOLLOWUP_COMPLETED,
             ).exists(),
         )
+
+    def test_complete_followup_requires_remarks_and_action(self):
+        followup = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate(),
+            created_by=self.salesperson,
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.post(
+            f"/api/v1/leads/{self.lead.id}/follow-ups/{followup.id}/complete/",
+            {"remarks": "Only remarks"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        followup.refresh_from_db()
+        self.assertEqual(followup.status, FollowUpStatus.PENDING)
 
     def test_update_followup_logs_activity(self):
         followup = FollowUp.objects.create(

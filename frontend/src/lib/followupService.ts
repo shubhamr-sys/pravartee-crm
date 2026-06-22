@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { FollowUp, FollowUpFormData, StageHistoryEntry } from "@/types/followup";
+import type { FollowUp, FollowUpCompleteData, FollowUpFormData, StageHistoryEntry } from "@/types/followup";
 
 export async function fetchLeadFollowUps(leadId: string): Promise<FollowUp[]> {
   const { data } = await api.get<FollowUp[]>(
@@ -34,9 +34,11 @@ export async function updateFollowUp(
 export async function completeFollowUp(
   leadId: string,
   followUpId: string,
+  values: FollowUpCompleteData,
 ): Promise<FollowUp> {
   const { data } = await api.post<FollowUp>(
     `/api/v1/leads/${leadId}/follow-ups/${followUpId}/complete/`,
+    values,
   );
   return data;
 }

@@ -34,7 +34,6 @@ const emptyForm: LeadFormData = {
   longitude: "",
   category: "",
   stage: "",
-  next_followup_date: "",
   notes: "",
   assigned_to: "",
   record_type: "LEAD",
@@ -97,9 +96,6 @@ export default function NewLeadPage() {
         delete payload.assigned_to;
       } else if (!payload.assigned_to) {
         delete payload.assigned_to;
-      }
-      if (!payload.next_followup_date) {
-        delete payload.next_followup_date;
       }
 
       const lead = await createLead({

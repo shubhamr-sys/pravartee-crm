@@ -305,16 +305,6 @@ export default function LeadForm({
           )}
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium">Next Follow-up</label>
-          <input
-            type="date"
-            className={inputClass}
-            value={values.next_followup_date}
-            onChange={(e) => updateField("next_followup_date", e.target.value)}
-          />
-        </div>
-
         {canAssign && (
           <div>
             <label className="mb-1 block text-sm font-medium">Assigned To</label>

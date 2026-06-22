@@ -44,7 +44,6 @@ function leadToFormData(lead: Lead): LeadFormData {
     longitude: lead.longitude ? Number(lead.longitude).toFixed(6) : "",
     category: lead.category || "",
     stage: lead.stage,
-    next_followup_date: lead.next_followup_date || "",
     notes: lead.notes,
     assigned_to: lead.assigned_to || "",
     record_type: lead.record_type || "LEAD",
@@ -109,6 +108,7 @@ export default function EditLeadPage() {
     setSubmitError(null);
 
     const submitValues = { ...values };
+    delete submitValues.next_followup_date;
     if (!canAssign) {
       delete submitValues.assigned_to;
     }
@@ -156,7 +156,7 @@ export default function EditLeadPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Edit Lead</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Update products, stage, follow-up, notes
+          Update products, stage, notes
           {canAssign ? ", and assignment" : ""} for {lead.customer_name}.
         </p>
       </div>
