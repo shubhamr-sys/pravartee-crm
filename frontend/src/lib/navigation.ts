@@ -31,7 +31,5 @@ export function getNavItemsForRole(role: UserRole): NavItem[] {
     items.push({ href: "/reports/sales", label: "Sales MBR" });
   }
 
-  items.push({ href: "/account/password", label: "Account" });
-
   return items;
 }

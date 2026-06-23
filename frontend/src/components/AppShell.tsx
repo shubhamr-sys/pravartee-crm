@@ -1,14 +1,16 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { getRoleLabel } from "@/lib/navigation";
 
+import ChangePasswordModal from "./ChangePasswordModal";
 import RoleNav from "./RoleNav";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -23,12 +25,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <Link
-              href="/account/password"
+            <button
+              type="button"
+              onClick={() => setChangePasswordOpen(true)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
             >
               Change password
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => logout()}
@@ -43,6 +46,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
     </div>
   );
 }
