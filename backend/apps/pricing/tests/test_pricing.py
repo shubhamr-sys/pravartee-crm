@@ -225,6 +225,23 @@ class PricingWorkflowTestCase(TestCase):
         self.assertEqual(len(response.data[0]["line_items"]), 1)
         self.assertEqual(response.data[0]["line_items"][0]["unit_price"], "50000.00")
 
+    def test_lead_pricing_list_legacy_responded_without_prices_shows_lead_items(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.RESPONDED,
+            response_remarks="JSK",
+            responded_at=timezone.now(),
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get(f"/api/v1/pricing/leads/{self.lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data[0]["line_items"]), 1)
+        self.assertIsNone(response.data[0]["line_items"][0]["unit_price"])
+        self.assertEqual(response.data[0]["line_items"][0]["product_name"], "Laptop")
+
     def test_public_submit_manual_pricing_multipart_json_line_items(self):
         pricing_request = PricingRequest.objects.create(
             lead=self.lead,

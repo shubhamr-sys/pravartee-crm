@@ -4,7 +4,7 @@ Pricing request serializers.
 from rest_framework import serializers
 
 from apps.leads.models import LeadItem
-from apps.pricing.models import PricingRequest, PricingResponseLineItem
+from apps.pricing.models import PricingRequest, PricingRequestStatus, PricingResponseLineItem
 
 
 class PricingLineItemReadSerializer(serializers.ModelSerializer):
@@ -70,7 +70,7 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
     requested_by_name = serializers.SerializerMethodField()
     vendor_quote_url = serializers.SerializerMethodField()
     generated_quotation_url = serializers.SerializerMethodField()
-    line_items = PricingResponseLineItemSerializer(many=True, read_only=True)
+    line_items = serializers.SerializerMethodField()
 
     class Meta:
         model = PricingRequest
@@ -95,6 +95,35 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
         if obj.requested_by_id:
             return obj.requested_by.get_full_name() or obj.requested_by.username
         return None
+
+    def get_line_items(self, obj):
+        response_items = list(obj.line_items.all())
+        if response_items:
+            return PricingResponseLineItemSerializer(response_items, many=True).data
+
+        if obj.status != PricingRequestStatus.RESPONDED:
+            return []
+
+        # Legacy responses (e.g. vendor PDF only) may have no stored unit prices.
+        rows = []
+        for lead_item in obj.lead.items.all():
+            rows.append(
+                {
+                    "id": str(lead_item.id),
+                    "lead_item_id": str(lead_item.id),
+                    "category_name": lead_item.category.name,
+                    "product_name": lead_item.product.name,
+                    "brand_name": lead_item.brand.name if lead_item.brand_id else None,
+                    "model_name": (
+                        lead_item.product_model.name if lead_item.product_model_id else None
+                    ),
+                    "quantity": lead_item.quantity,
+                    "specification": lead_item.specification,
+                    "unit_price": None,
+                    "remarks": "",
+                }
+            )
+        return rows
 
     def _file_url(self, file_field):
         if not file_field:

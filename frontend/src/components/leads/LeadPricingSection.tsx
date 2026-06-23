@@ -29,6 +29,10 @@ function hasLineItemPrices(request: PricingRequest): boolean {
   );
 }
 
+function legacyPricingPdfUrl(request: PricingRequest): string | null {
+  return request.generated_quotation_url || request.vendor_quote_url || null;
+}
+
 interface LeadPricingSectionProps {
   leadId: string;
   onPricingReady?: (request: PricingRequest) => void;
@@ -201,6 +205,31 @@ export default function LeadPricingSection({
               {request.status === "RESPONDED" && hasLineItemPrices(request) && (
                 <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
                   Prices submitted — see line items below.
+                </div>
+              )}
+
+              {request.status === "RESPONDED" && !hasLineItemPrices(request) && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {legacyPricingPdfUrl(request) ? (
+                    <>
+                      This response has no unit prices on file. A quotation PDF was uploaded
+                      instead.{" "}
+                      <a
+                        href={legacyPricingPdfUrl(request)!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-amber-950 underline hover:text-amber-900"
+                      >
+                        Download pricing PDF
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      This response has no unit prices recorded (only remarks were saved).
+                      Ask Commercial / Purchase to submit prices again using{" "}
+                      <span className="font-medium">Ask for Price</span>.
+                    </>
+                  )}
                 </div>
               )}
 
