@@ -87,9 +87,17 @@ class PricingResponseLineItem(TimeStampedModel):
     )
     lead_item = models.ForeignKey(
         "leads.LeadItem",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="pricing_responses",
     )
+    category_name = models.CharField(max_length=255, blank=True)
+    product_name = models.CharField(max_length=255, blank=True)
+    brand_name = models.CharField(max_length=255, blank=True)
+    model_name = models.CharField(max_length=255, blank=True)
+    quantity = models.PositiveIntegerField(null=True, blank=True)
+    specification = models.TextField(blank=True)
     unit_price = models.DecimalField(
         max_digits=14,
         decimal_places=2,

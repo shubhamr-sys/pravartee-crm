@@ -33,21 +33,13 @@ class PricingLineItemReadSerializer(serializers.ModelSerializer):
 
 
 class PricingResponseLineItemSerializer(serializers.ModelSerializer):
-    lead_item_id = serializers.UUIDField(source="lead_item.id", read_only=True)
-    category_name = serializers.CharField(source="lead_item.category.name", read_only=True)
-    product_name = serializers.CharField(source="lead_item.product.name", read_only=True)
-    brand_name = serializers.CharField(
-        source="lead_item.brand.name",
-        read_only=True,
-        allow_null=True,
-    )
-    model_name = serializers.CharField(
-        source="lead_item.product_model.name",
-        read_only=True,
-        allow_null=True,
-    )
-    quantity = serializers.IntegerField(source="lead_item.quantity", read_only=True)
-    specification = serializers.CharField(source="lead_item.specification", read_only=True)
+    lead_item_id = serializers.SerializerMethodField()
+    category_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    brand_name = serializers.SerializerMethodField()
+    model_name = serializers.SerializerMethodField()
+    quantity = serializers.SerializerMethodField()
+    specification = serializers.SerializerMethodField()
 
     class Meta:
         model = PricingResponseLineItem
@@ -63,6 +55,47 @@ class PricingResponseLineItemSerializer(serializers.ModelSerializer):
             "unit_price",
             "remarks",
         ]
+
+    def get_lead_item_id(self, obj):
+        return str(obj.lead_item_id) if obj.lead_item_id else None
+
+    def _from_lead_item(self, obj, attr: str, snapshot: str):
+        if obj.lead_item_id:
+            lead_item = obj.lead_item
+            if attr == "category_name":
+                return lead_item.category.name
+            if attr == "product_name":
+                return lead_item.product.name
+            if attr == "brand_name":
+                return lead_item.brand.name if lead_item.brand_id else None
+            if attr == "model_name":
+                return lead_item.product_model.name if lead_item.product_model_id else None
+            if attr == "quantity":
+                return lead_item.quantity
+            if attr == "specification":
+                return lead_item.specification
+        value = getattr(obj, snapshot, None)
+        if attr in ("brand_name", "model_name") and value == "":
+            return None
+        return value
+
+    def get_category_name(self, obj):
+        return self._from_lead_item(obj, "category_name", "category_name")
+
+    def get_product_name(self, obj):
+        return self._from_lead_item(obj, "product_name", "product_name")
+
+    def get_brand_name(self, obj):
+        return self._from_lead_item(obj, "brand_name", "brand_name")
+
+    def get_model_name(self, obj):
+        return self._from_lead_item(obj, "model_name", "model_name")
+
+    def get_quantity(self, obj):
+        return self._from_lead_item(obj, "quantity", "quantity")
+
+    def get_specification(self, obj):
+        return self._from_lead_item(obj, "specification", "specification")
 
 
 class PricingRequestListSerializer(serializers.ModelSerializer):
@@ -187,12 +220,29 @@ class PublicPricingSubmitSerializer(serializers.Serializer):
 
     def validate_line_items(self, value):
         if not value:
-            raise serializers.ValidationError("Enter at least one unit price.")
-        priced = [
-            row
-            for row in value
-            if row.get("unit_price") not in (None, "")
-        ]
-        if not priced:
-            raise serializers.ValidationError("Enter at least one unit price.")
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
+        pricing_request = self.context.get("pricing_request")
+        expected_ids = None
+        if pricing_request is not None:
+            expected_ids = {
+                str(item_id)
+                for item_id in pricing_request.lead.items.values_list("id", flat=True)
+            }
+
+        priced_ids: set[str] = set()
+        for row in value:
+            if row.get("unit_price") in (None, ""):
+                continue
+            lead_item_id = row.get("lead_item_id")
+            if not lead_item_id:
+                raise serializers.ValidationError("Each line must include lead_item_id.")
+            priced_ids.add(str(lead_item_id))
+
+        if not priced_ids:
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
+        if expected_ids is not None and priced_ids != expected_ids:
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
         return value

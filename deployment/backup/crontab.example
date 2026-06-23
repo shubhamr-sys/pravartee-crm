@@ -1,0 +1,15 @@
+# Pravartee CRM — example crontab entries
+# Install: crontab -e  (paste lines below, fix paths)
+# List:    crontab -l
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# --- Daily database backup at 2:00 AM (local + Google Drive if configured) ---
+0 2 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
+
+# --- Optional: every 6 hours ---
+# 0 */6 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
+
+# --- Optional: start CRM after server reboot ---
+# @reboot /home/development/Documents/pravartee-crm-main/scripts/boot-crm.sh

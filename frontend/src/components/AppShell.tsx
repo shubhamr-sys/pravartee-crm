@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useAuth } from "@/context/AuthContext";
 import { getRoleLabel } from "@/lib/navigation";
 
@@ -20,13 +22,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="self-start rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 sm:self-auto"
-          >
-            Logout
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <Link
+              href="/account/password"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              Change password
+            </Link>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              Logout
+            </button>
+          </div>
         </div>
         <div className="mx-auto max-w-6xl px-4 pb-4">
           <RoleNav />

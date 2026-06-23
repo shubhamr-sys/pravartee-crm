@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.accounts.access import user_can_access_lead
 from apps.activities.models import ActivityType
 from apps.activities.services import log_lead_activity
-from apps.leads.models import Lead
+from apps.leads.models import Lead, LeadItem
 
 from .emails import send_pricing_request_email, send_pricing_response_notification
 from .models import (
@@ -73,7 +73,7 @@ def submit_pricing_response(
 
     pricing_request.submission_mode = PricingSubmissionMode.MANUAL_PRICING
     lead_item_ids = {str(x) for x in lead.items.values_list("id", flat=True)}
-    saved_lines = 0
+    priced_item_ids: set[str] = set()
     for row in line_items_data:
         lead_item_id = str(row.get("lead_item_id"))
         if lead_item_id not in lead_item_ids:
@@ -81,18 +81,32 @@ def submit_pricing_response(
         unit_price = _parse_decimal(row.get("unit_price"))
         if unit_price is None:
             continue
+        lead_item = LeadItem.objects.select_related(
+            "category",
+            "product",
+            "brand",
+            "product_model",
+        ).get(pk=lead_item_id)
         PricingResponseLineItem.objects.update_or_create(
             pricing_request=pricing_request,
             lead_item_id=lead_item_id,
             defaults={
                 "unit_price": unit_price,
                 "remarks": row.get("remarks", ""),
+                "category_name": lead_item.category.name,
+                "product_name": lead_item.product.name,
+                "brand_name": lead_item.brand.name if lead_item.brand_id else "",
+                "model_name": (
+                    lead_item.product_model.name if lead_item.product_model_id else ""
+                ),
+                "quantity": lead_item.quantity,
+                "specification": lead_item.specification or "",
             },
         )
-        saved_lines += 1
+        priced_item_ids.add(lead_item_id)
 
-    if saved_lines == 0:
-        raise ValueError("Enter at least one unit price.")
+    if priced_item_ids != lead_item_ids:
+        raise ValueError("Enter a unit price for every product line.")
 
     pricing_request.response_remarks = response_remarks
     pricing_request.status = PricingRequestStatus.RESPONDED

@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { isAxiosError } from "axios";
 
 import { useAuth } from "@/context/AuthContext";
-import { useMounted } from "@/hooks/useMounted";
 import { getBackendPort, resolveApiBaseUrl } from "@/lib/api";
 
 interface FormErrors {
@@ -33,7 +33,6 @@ function validate(email: string, password: string): FormErrors {
 
 export default function LoginForm() {
   const { login } = useAuth();
-  const mounted = useMounted();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
@@ -41,7 +40,7 @@ export default function LoginForm() {
 
   async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (!mounted || isSubmitting) return;
+    if (isSubmitting) return;
     const validationErrors = validate(email, password);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -81,21 +80,15 @@ export default function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-5"
-      noValidate
-      // Prevent native GET submit if React has not hydrated yet.
-      action="#"
-    >
-      {errors.general && (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate action="#">
+      {errors.general ? (
         <div
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
           {errors.general}
         </div>
-      )}
+      ) : null}
 
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
@@ -110,9 +103,9 @@ export default function LoginForm() {
           className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
           placeholder="you@company.com"
         />
-        {errors.email && (
+        {errors.email ? (
           <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-        )}
+        ) : null}
       </div>
 
       <div>
@@ -128,18 +121,25 @@ export default function LoginForm() {
           className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
           placeholder="Enter your password"
         />
-        {errors.password && (
+        {errors.password ? (
           <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-        )}
+        ) : null}
+        <p className="mt-2 text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-teal-700 hover:text-teal-800"
+          >
+            Forgot password?
+          </Link>
+        </p>
       </div>
 
       <button
-        type="button"
-        onClick={() => void handleSubmit()}
-        disabled={!mounted || isSubmitting}
+        type="submit"
+        disabled={isSubmitting}
         className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {!mounted ? "Loading..." : isSubmitting ? "Signing in..." : "Sign in"}
+        {isSubmitting ? "Signing in..." : "Sign in"}
       </button>
     </form>
   );

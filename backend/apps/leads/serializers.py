@@ -73,7 +73,7 @@ class LeadItemSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
 
     def get_brand_name(self, obj):
         return obj.brand.name if obj.brand_id else ""

@@ -171,6 +171,7 @@ export type AssignableUser = Pick<
 >;
 
 export interface LeadItemPayload {
+  id?: string;
   category: string;
   product: string;
   brand: string | null;
@@ -184,14 +185,20 @@ export interface LeadItemPayload {
 export function buildItemsPayload(items: LeadItemFormData[]): LeadItemPayload[] {
   return items
     .filter((item) => item.category && item.product)
-    .map((item) => ({
-      category: item.category,
-      product: item.product,
-      brand: item.brand || null,
-      model: item.model || null,
-      quantity: Number(item.quantity),
-      uom: item.uom || "NOS",
-      specification: item.specification.trim(),
-      remarks: item.remarks.trim(),
-    }));
+    .map((item) => {
+      const payload: LeadItemPayload = {
+        category: item.category,
+        product: item.product,
+        brand: item.brand || null,
+        model: item.model || null,
+        quantity: Number(item.quantity),
+        uom: item.uom || "NOS",
+        specification: item.specification.trim(),
+        remarks: item.remarks.trim(),
+      };
+      if (item.id) {
+        payload.id = item.id;
+      }
+      return payload;
+    });
 }

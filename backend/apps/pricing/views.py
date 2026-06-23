@@ -121,7 +121,10 @@ class PublicPricingSubmitView(APIView):
     def post(self, request, token):
         pricing_request = get_object_or_404(PricingRequest, token=token)
         payload = _public_pricing_submit_payload(request)
-        serializer = PublicPricingSubmitSerializer(data=payload)
+        serializer = PublicPricingSubmitSerializer(
+            data=payload,
+            context={"pricing_request": pricing_request},
+        )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:

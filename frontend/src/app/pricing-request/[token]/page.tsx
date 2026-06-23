@@ -89,8 +89,11 @@ export default function PublicPricingRequestPage() {
     if (!request || request.status === "RESPONDED") return;
 
     const line_items = Object.values(lineInputs).filter((row) => row.unit_price.trim());
-    if (line_items.length === 0) {
-      setError("Enter at least one unit price.");
+    const missingPrices = request.line_items.filter(
+      (item) => !lineInputs[item.id]?.unit_price?.trim(),
+    );
+    if (missingPrices.length > 0) {
+      setError("Enter a unit price for every product line.");
       return;
     }
 
@@ -202,7 +205,7 @@ export default function PublicPricingRequestPage() {
             <div>
               <h3 className="text-sm font-medium text-slate-700">Unit prices *</h3>
               <p className="mt-1 text-sm text-slate-500">
-                Enter the price for each product line. At least one unit price is required.
+                Enter the unit price for every product line below. All prices are required.
               </p>
               <div className="mt-3 space-y-3">
                 {request.line_items.map((item) => (
@@ -217,7 +220,8 @@ export default function PublicPricingRequestPage() {
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="Unit price"
+                      required
+                      placeholder="Unit price *"
                       className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                       value={lineInputs[item.id]?.unit_price ?? ""}
                       onChange={(e) =>

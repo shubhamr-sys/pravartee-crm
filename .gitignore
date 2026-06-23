@@ -42,6 +42,7 @@ backend/media/
 !.env.example
 !.env.local.example
 .run/
+backups/
 frontend/certificates/
 
 # IDE
