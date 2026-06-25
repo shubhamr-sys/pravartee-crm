@@ -5,13 +5,24 @@
 #   ./scripts/boot-crm.sh
 #
 # Optional in root .env:
-#   BOOT_USE_HTTPS=true   — run ./start-https.sh instead of ./start.sh
-#   BOOT_START_POSTGRES=true — ensure Docker Postgres is up first (default true)
+#   BOOT_USE_HTTPS=true        — run ./start-https.sh instead of ./start.sh
+#   BOOT_START_POSTGRES=true   — ensure Docker Postgres is up first (default true)
+#   BOOT_LOG_FILE=...          — boot log path (defaults to .run/boot.log if /var/log not writable)
+#   BOOT_WAIT_SECONDS=15       — seconds to wait for network/Docker after boot
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+# Cron @reboot runs with a minimal environment — extend PATH for docker/node/python.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${HOME}/.local/bin:${PATH}"
+if [[ -f "${HOME}/.nvm/nvm.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.nvm/nvm.sh"
+fi
+
+_cli_boot_wait="${BOOT_WAIT_SECONDS:-}"
 
 if [[ -f "$ROOT/.env" ]]; then
   set -a
@@ -20,20 +31,36 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 
+if [[ -n "$_cli_boot_wait" ]]; then
+  BOOT_WAIT_SECONDS="$_cli_boot_wait"
+fi
+BOOT_WAIT_SECONDS="${BOOT_WAIT_SECONDS:-15}"
+
 BOOT_USE_HTTPS="${BOOT_USE_HTTPS:-true}"
 BOOT_START_POSTGRES="${BOOT_START_POSTGRES:-true}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change_me_strong_password}"
-LOG_FILE="${BOOT_LOG_FILE:-/var/log/pravartee-boot.log}"
+
+init_log_file() {
+  local preferred="${BOOT_LOG_FILE:-/var/log/pravartee-boot.log}"
+  local fallback="$ROOT/.run/boot.log"
+  mkdir -p "$ROOT/.run"
+  if touch "$preferred" 2>/dev/null; then
+    LOG_FILE="$preferred"
+  else
+    LOG_FILE="$fallback"
+    touch "$LOG_FILE"
+  fi
+}
+
+init_log_file
 
 log() {
   echo "$(date -Is) $*" | tee -a "$LOG_FILE"
 }
 
-mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || LOG_FILE="$ROOT/.run/boot.log"
-
-log "boot-crm: waiting for network ..."
-sleep 15
+log "boot-crm: waiting ${BOOT_WAIT_SECONDS}s for network ..."
+sleep "$BOOT_WAIT_SECONDS"
 
 if [[ "$BOOT_START_POSTGRES" == "true" ]] && command -v docker >/dev/null 2>&1; then
   log "boot-crm: starting PostgreSQL ..."
@@ -47,6 +74,8 @@ if [[ "$BOOT_START_POSTGRES" == "true" ]] && command -v docker >/dev/null 2>&1; 
     fi
     sleep 2
   done
+elif [[ "$BOOT_START_POSTGRES" == "true" ]]; then
+  log "boot-crm: docker not in PATH — assuming PostgreSQL is already running."
 fi
 
 if [[ -f "$ROOT/.run/backend.pid" ]]; then
@@ -55,6 +84,7 @@ if [[ -f "$ROOT/.run/backend.pid" ]]; then
     log "boot-crm: CRM already running (backend pid ${old_pid})."
     exit 0
   fi
+  rm -f "$ROOT/.run/backend.pid"
 fi
 
 LAUNCHER="$ROOT/start.sh"
@@ -62,6 +92,7 @@ if [[ "$BOOT_USE_HTTPS" == "true" ]]; then
   LAUNCHER="$ROOT/start-https.sh"
 fi
 
-log "boot-crm: launching ${LAUNCHER} ..."
-nohup "$LAUNCHER" >> "$LOG_FILE" 2>&1 &
+log "boot-crm: launching ${LAUNCHER} (PATH=${PATH}) ..."
+# Login shell so npm/npx/python from nvm or profile are available under cron.
+nohup /bin/bash -lc "cd '$ROOT' && exec '$LAUNCHER'" >> "$LOG_FILE" 2>&1 &
 log "boot-crm: started (pid $!). Log: ${LOG_FILE}"

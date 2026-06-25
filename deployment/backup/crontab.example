@@ -3,7 +3,7 @@
 # List:    crontab -l
 
 SHELL=/bin/bash
-PATH=/usr/local/bin:/usr/bin:/bin
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # --- Daily database backup at 2:00 AM (local + Google Drive if configured) ---
 0 2 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
@@ -11,5 +11,5 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # --- Optional: every 6 hours ---
 # 0 */6 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
 
-# --- Optional: start CRM after server reboot ---
-# @reboot /home/development/Documents/pravartee-crm-main/scripts/boot-crm.sh
+# --- Start CRM after server reboot (sleep lets Docker/network come up first) ---
+@reboot sleep 90 && /bin/bash -lc '/home/development/Documents/pravartee-crm-main/scripts/boot-crm.sh >> /home/development/Documents/pravartee-crm-main/.run/boot-cron.log 2>&1'
