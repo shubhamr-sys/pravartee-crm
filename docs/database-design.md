@@ -129,7 +129,7 @@ Stores all customer opportunities.
 | Column             | Type          | Description              |
 | ------------------ | ------------- | ------------------------ |
 | id                 | UUID          | Primary Key              |
-| customer_name      | VARCHAR(255)  | Customer name            |
+| customer_name      | VARCHAR(255)  | Project name             |
 | company_name       | VARCHAR(255)  | Company name             |
 | contact_person     | VARCHAR(255)  | Contact person           |
 | phone              | VARCHAR(20)   | Mobile number            |

@@ -5,6 +5,9 @@ import { FormEvent, useState } from "react";
 import { isAxiosError } from "axios";
 
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { getValidationToastMessage } from "@/lib/formErrors";
+import { useMounted } from "@/hooks/useMounted";
 import { getBackendPort, resolveApiBaseUrl } from "@/lib/api";
 
 interface FormErrors {
@@ -33,6 +36,8 @@ function validate(email: string, password: string): FormErrors {
 
 export default function LoginForm() {
   const { login } = useAuth();
+  const { showErrorToast } = useToast();
+  const mounted = useMounted();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
@@ -40,10 +45,11 @@ export default function LoginForm() {
 
   async function handleSubmit(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (isSubmitting) return;
+    if (!mounted || isSubmitting) return;
     const validationErrors = validate(email, password);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      showErrorToast(getValidationToastMessage(validationErrors as Record<string, string>));
       return;
     }
 
@@ -68,6 +74,11 @@ export default function LoginForm() {
           });
         } else if (typeof detail === "string") {
           setErrors({ general: detail });
+        } else if (status && status >= 500) {
+          setErrors({
+            general:
+              "The server encountered an error. Try again in a moment or contact support if this continues.",
+          });
         } else {
           setErrors({ general: "Unable to sign in. Please try again." });
         }
@@ -99,8 +110,21 @@ export default function LoginForm() {
           type="email"
           autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (errors.email || errors.general) {
+              setErrors((current) => ({
+                ...current,
+                email: undefined,
+                general: undefined,
+              }));
+            }
+          }}
+          className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
+            errors.email
+              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-teal-600 focus:ring-teal-100"
+          }`}
           placeholder="you@company.com"
         />
         {errors.email ? (
@@ -117,8 +141,21 @@ export default function LoginForm() {
           type="password"
           autoComplete="current-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (errors.password || errors.general) {
+              setErrors((current) => ({
+                ...current,
+                password: undefined,
+                general: undefined,
+              }));
+            }
+          }}
+          className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
+            errors.password
+              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-teal-600 focus:ring-teal-100"
+          }`}
           placeholder="Enter your password"
         />
         {errors.password ? (
@@ -136,10 +173,10 @@ export default function LoginForm() {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={!mounted || isSubmitting}
         className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Signing in..." : "Sign in"}
+        {!mounted ? "Loading..." : isSubmitting ? "Signing in..." : "Sign in"}
       </button>
     </form>
   );

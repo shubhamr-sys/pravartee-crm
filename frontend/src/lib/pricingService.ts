@@ -3,9 +3,17 @@ import axios from "axios";
 import { api, resolveApiBaseUrl } from "@/lib/api";
 import type {
   ManualPricingLineInput,
+  PricingMetrics,
   PricingRequest,
   PublicPricingRequest,
 } from "@/types/pricing";
+
+const publicApi = axios.create({ timeout: 30_000 });
+
+publicApi.interceptors.request.use((config) => {
+  config.baseURL = resolveApiBaseUrl();
+  return config;
+});
 
 export async function fetchLeadPricingRequests(
   leadId: string,
@@ -23,11 +31,16 @@ export async function createPricingRequest(leadId: string): Promise<PricingReque
   return data;
 }
 
+export async function fetchPricingMetrics(): Promise<PricingMetrics> {
+  const { data } = await api.get<PricingMetrics>("/api/v1/pricing/metrics/");
+  return data;
+}
+
 export async function fetchPublicPricingRequest(
   token: string,
 ): Promise<PublicPricingRequest> {
-  const { data } = await axios.get<PublicPricingRequest>(
-    `${resolveApiBaseUrl()}/api/v1/pricing/public/${encodeURIComponent(token)}/`,
+  const { data } = await publicApi.get<PublicPricingRequest>(
+    `/api/v1/pricing/public/${encodeURIComponent(token)}/`,
   );
   return data;
 }
@@ -35,20 +48,33 @@ export async function fetchPublicPricingRequest(
 export async function submitPublicPricing(
   token: string,
   payload: {
-    response_remarks: string;
-    line_items: ManualPricingLineInput[];
+    response_remarks?: string;
+    vendor_quote_pdf?: File | null;
+    line_items?: ManualPricingLineInput[];
   },
 ): Promise<PublicPricingRequest> {
-  const { data } = await axios.post<PublicPricingRequest>(
-    `${resolveApiBaseUrl()}/api/v1/pricing/public/${encodeURIComponent(token)}/submit/`,
-    {
-      response_remarks: payload.response_remarks,
-      line_items: payload.line_items.map((row) => ({
-        lead_item_id: row.lead_item_id,
-        unit_price: row.unit_price,
-        remarks: row.remarks,
-      })),
-    },
-  );
+  const url = `/api/v1/pricing/public/${encodeURIComponent(token)}/submit/`;
+
+  if (payload.vendor_quote_pdf) {
+    const formData = new FormData();
+    if (payload.response_remarks) {
+      formData.append("response_remarks", payload.response_remarks);
+    }
+    formData.append("vendor_quote_pdf", payload.vendor_quote_pdf);
+    if (payload.line_items?.length) {
+      formData.append("line_items", JSON.stringify(payload.line_items));
+    }
+    const { data } = await publicApi.post<PublicPricingRequest>(url, formData);
+    return data;
+  }
+
+  const { data } = await publicApi.post<PublicPricingRequest>(url, {
+    response_remarks: payload.response_remarks ?? "",
+    line_items: (payload.line_items ?? []).map((row) => ({
+      lead_item_id: row.lead_item_id,
+      unit_price: row.unit_price,
+      remarks: row.remarks,
+    })),
+  });
   return data;
 }

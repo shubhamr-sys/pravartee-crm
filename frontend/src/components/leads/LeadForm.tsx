@@ -2,15 +2,21 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { isAxiosError } from "axios";
 
 import LocationDisplay from "@/components/attendance/LocationDisplay";
+import LeadDocumentsSection from "@/components/leads/LeadDocumentsSection";
 import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
 import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
+import { useToast } from "@/context/ToastContext";
 import { GeolocationError, getCurrentPosition } from "@/lib/geolocation";
+import { getValidationToastMessage, parseApiFieldErrors } from "@/lib/formErrors";
 import { GUT_FEELING_PERCENT_OPTIONS } from "@/lib/gutFeelingOptions";
+import { validateIndianMobile } from "@/lib/phoneValidation";
 import {
   getRecordTypeLabel,
   type AssignableUser,
+  type LeadDocument,
   type LeadFormData,
   type LeadRecordType,
   type LeadStage,
@@ -25,15 +31,25 @@ interface LeadFormProps {
   assignableUsers?: AssignableUser[];
   canAssign?: boolean;
   isSubmitting?: boolean;
-  error?: string | null;
   cancelHref?: string;
+  leadId?: string;
+  initialDocuments?: LeadDocument[];
   onSubmit: (values: LeadFormData) => Promise<void>;
 }
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
-const PHONE_PATTERN = /^[\d\s+\-().]{7,20}$/;
+function fieldClass(hasError: boolean): string {
+  return hasError
+    ? `${inputClass} border-red-500 focus:border-red-500 focus:ring-red-100`
+    : inputClass;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-sm text-red-600">{message}</p>;
+}
 
 function formatGpsCoordinate(value: number): string {
   return value.toFixed(6);
@@ -56,11 +72,14 @@ export default function LeadForm({
   assignableUsers = [],
   canAssign = false,
   isSubmitting = false,
-  error,
   cancelHref,
+  leadId,
+  initialDocuments = [],
   onSubmit,
 }: LeadFormProps) {
+  const { showErrorToast } = useToast();
   const [values, setValues] = useState<LeadFormData>(initialValues);
+  const [documents, setDocuments] = useState<LeadDocument[]>(initialDocuments);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
@@ -71,6 +90,18 @@ export default function LeadForm({
 
   function updateField<K extends keyof LeadFormData>(key: K, value: LeadFormData[K]) {
     setValues((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key as string] && !current._form) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[key as string];
+      delete next._form;
+      if (key === "items") {
+        delete next.items;
+      }
+      return next;
+    });
   }
 
   async function handleCaptureGps() {
@@ -99,10 +130,10 @@ export default function LeadForm({
 
   const hasGps = Boolean(values.latitude && values.longitude);
 
-  function validate(): boolean {
+  function collectValidationErrors(): Record<string, string> {
     const errors: Record<string, string> = {};
     if (mode === "create" && !values.customer_name.trim()) {
-      errors.customer_name = "Customer name is required.";
+      errors.customer_name = "Project name is required.";
     }
     if (mode === "create" && !values.company_name.trim()) {
       errors.company_name = "Company name is required.";
@@ -110,8 +141,12 @@ export default function LeadForm({
     if (!values.stage) {
       errors.stage = "Stage is required.";
     }
-    if (values.phone && !PHONE_PATTERN.test(values.phone)) {
-      errors.phone = "Enter a valid phone number.";
+    if (!values.contact_person.trim()) {
+      errors.contact_person = "Contact person is required.";
+    }
+    const phoneError = validateIndianMobile(values.phone);
+    if (phoneError) {
+      errors.phone = phoneError;
     }
     if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
       errors.email = "Enter a valid email address.";
@@ -144,14 +179,37 @@ export default function LeadForm({
       }
     }
 
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validate()) return;
-    await onSubmit(values);
+    const errors = collectValidationErrors();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      showErrorToast(getValidationToastMessage(errors));
+      return;
+    }
+
+    setFieldErrors({});
+    try {
+      await onSubmit(values);
+    } catch (error) {
+      if (isAxiosError(error)) {
+        const apiErrors = parseApiFieldErrors(error.response?.data);
+        if (Object.keys(apiErrors).length > 0) {
+          setFieldErrors(apiErrors);
+          showErrorToast(getValidationToastMessage(apiErrors));
+          return;
+        }
+        const detail = error.response?.data?.detail;
+        const message =
+          typeof detail === "string" ? detail : "Unable to save lead. Please try again.";
+        showErrorToast(message);
+        return;
+      }
+      showErrorToast("Unable to save lead. Please try again.");
+    }
   }
 
   const recordType = values.record_type || "LEAD";
@@ -171,71 +229,91 @@ export default function LeadForm({
         />
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+      {fieldErrors._form && (
+        <p className="text-sm text-red-600">{fieldErrors._form}</p>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Customer Name{mode === "create" ? " *" : ""}
-          </label>
-          <input
-            className={inputClass}
-            value={values.customer_name}
-            onChange={(e) => updateField("customer_name", e.target.value)}
-          />
-          {fieldErrors.customer_name && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.customer_name}</p>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Company Name{mode === "create" ? " *" : ""}
-          </label>
-          <input
-            className={inputClass}
-            value={values.company_name}
-            onChange={(e) => updateField("company_name", e.target.value)}
-          />
-          {fieldErrors.company_name && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.company_name}</p>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Contact Person</label>
-          <input
-            className={inputClass}
-            value={values.contact_person}
-            onChange={(e) => updateField("contact_person", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Phone</label>
-          <input
-            className={inputClass}
-            value={values.phone}
-            onChange={(e) => updateField("phone", e.target.value)}
-          />
-          {fieldErrors.phone && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Email</label>
-          <input
-            type="email"
-            className={inputClass}
-            value={values.email}
-            onChange={(e) => updateField("email", e.target.value)}
-          />
-          {fieldErrors.email && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-          )}
-        </div>
-      </section>
+      {mode === "create" && (
+        <section className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Project Name *</label>
+            <input
+              className={fieldClass(Boolean(fieldErrors.customer_name))}
+              value={values.customer_name}
+              onChange={(e) => updateField("customer_name", e.target.value)}
+            />
+            <FieldError message={fieldErrors.customer_name} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Company Name *</label>
+            <input
+              className={fieldClass(Boolean(fieldErrors.company_name))}
+              value={values.company_name}
+              onChange={(e) => updateField("company_name", e.target.value)}
+            />
+            <FieldError message={fieldErrors.company_name} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Contact Person *</label>
+            <input
+              className={fieldClass(Boolean(fieldErrors.contact_person))}
+              value={values.contact_person}
+              onChange={(e) => updateField("contact_person", e.target.value)}
+            />
+            <FieldError message={fieldErrors.contact_person} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Mobile *</label>
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="10-digit mobile number"
+              className={fieldClass(Boolean(fieldErrors.phone))}
+              value={values.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+            />
+            <FieldError message={fieldErrors.phone} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Email</label>
+            <input
+              type="email"
+              className={fieldClass(Boolean(fieldErrors.email))}
+              value={values.email}
+              onChange={(e) => updateField("email", e.target.value)}
+            />
+            <FieldError message={fieldErrors.email} />
+          </div>
+        </section>
+      )}
+
+      {mode === "edit" && (
+        <section className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Contact Person *</label>
+            <input
+              className={fieldClass(Boolean(fieldErrors.contact_person))}
+              value={values.contact_person}
+              onChange={(e) => updateField("contact_person", e.target.value)}
+            />
+            <FieldError message={fieldErrors.contact_person} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Mobile *</label>
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="10-digit mobile number"
+              className={fieldClass(Boolean(fieldErrors.phone))}
+              value={values.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+            />
+            <FieldError message={fieldErrors.phone} />
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
@@ -299,13 +377,25 @@ export default function LeadForm({
         categories={categories}
         onChange={(items) => updateField("items", items)}
         errors={fieldErrors}
+        allowBulkUpload={mode === "create"}
+      />
+
+      <LeadDocumentsSection
+        leadId={leadId}
+        items={values.items}
+        categories={categories}
+        documents={documents}
+        pendingDocuments={values.pendingDocuments}
+        disabled={isSubmitting}
+        onDocumentsChange={setDocuments}
+        onPendingDocumentsChange={(files) => updateField("pendingDocuments", files)}
       />
 
       <section className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium">Stage *</label>
           <select
-            className={inputClass}
+            className={fieldClass(Boolean(fieldErrors.stage))}
             value={selectIdValue(values.stage)}
             onChange={(e) => updateField("stage", e.target.value)}
           >
@@ -316,9 +406,7 @@ export default function LeadForm({
               </option>
             ))}
           </select>
-          {fieldErrors.stage && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.stage}</p>
-          )}
+          <FieldError message={fieldErrors.stage} />
         </div>
 
         <div>

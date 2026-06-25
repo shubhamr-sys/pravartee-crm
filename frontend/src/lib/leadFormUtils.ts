@@ -8,7 +8,7 @@ function toFormId(value: string | null | undefined): string {
 function normalizeGutFeelingPercent(
   value: Lead["gut_feeling_percent"],
 ): LeadFormData["gut_feeling_percent"] {
-  if (value === null || value === undefined || value === "") return "";
+  if (value === null || value === undefined) return "";
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : "";
 }
@@ -36,5 +36,6 @@ export function leadToFormData(lead: Lead): LeadFormData {
     assigned_to: toFormId(lead.assigned_to),
     record_type: lead.record_type || "LEAD",
     items,
+    pendingDocuments: [],
   };
 }

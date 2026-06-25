@@ -1,4 +1,3 @@
-import re
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
@@ -10,12 +9,12 @@ from apps.activities.services import log_lead_created, log_lead_updated
 
 from .assignment import user_can_assign_lead_to
 from .lead_item_services import replace_lead_items, sync_lead_from_items
-from .models import Brand, Lead, LeadItem, LeadStage, Product, ProductCategory, ProductModel
+from .models import Brand, Lead, LeadDocument, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 
 DUE_SOON_DAYS = 3
 GUT_FEELING_VALUES = list(range(10, 101, 10))
 
-PHONE_PATTERN = re.compile(r"^[\d\s+\-().]{7,20}$")
+from .phone_validation import validate_and_normalize_indian_mobile
 GPS_QUANTIZE = Decimal("0.000001")
 
 
@@ -115,6 +114,36 @@ class LeadItemSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class LeadDocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LeadDocument
+        fields = [
+            "id",
+            "original_filename",
+            "file_url",
+            "file_size",
+            "uploaded_by_name",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return str(obj.uploaded_by)
+        return None
+
+
 class LeadSerializer(serializers.ModelSerializer):
     stage_name = serializers.CharField(source="stage.name", read_only=True)
     category_name = serializers.CharField(source="category.name", read_only=True)
@@ -124,6 +153,7 @@ class LeadSerializer(serializers.ModelSerializer):
     has_pending_pricing_request = serializers.SerializerMethodField()
     location_url = serializers.SerializerMethodField()
     items = LeadItemSerializer(many=True, required=False)
+    documents = LeadDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Lead
@@ -153,6 +183,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "has_pricing_response",
             "has_pending_pricing_request",
             "items",
+            "documents",
             "created_at",
             "updated_at",
         ]
@@ -241,12 +272,16 @@ class LeadSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def validate_contact_person(self, value):
+        if not value or not str(value).strip():
+            raise serializers.ValidationError("Contact person is required.")
+        return str(value).strip()
+
     def validate_phone(self, value):
-        if value and not PHONE_PATTERN.match(value):
-            raise serializers.ValidationError(
-                "Enter a valid phone number (7–20 digits, spaces, +, -, (), . allowed).",
-            )
-        return value
+        try:
+            return validate_and_normalize_indian_mobile(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
 
     def validate_gut_feeling_percent(self, value):
         if value is None:
@@ -326,5 +361,11 @@ class LeadSerializer(serializers.ModelSerializer):
                     "product_model",
                 ),
                 many=True,
+            ).data
+        if hasattr(instance, "documents"):
+            representation["documents"] = LeadDocumentSerializer(
+                instance.documents.select_related("uploaded_by").all(),
+                many=True,
+                context=self.context,
             ).data
         return representation

@@ -214,6 +214,8 @@ class RBACAPITestCase(TestCase):
             {
                 "customer_name": "New Customer",
                 "company_name": "New Co",
+                "contact_person": "New Contact",
+                "phone": "9876543210",
                 "category": str(self.category.id),
                 "stage": str(self.stage.id),
             },
@@ -229,6 +231,8 @@ class RBACAPITestCase(TestCase):
             {
                 "customer_name": "Stolen Lead",
                 "company_name": "Stolen Co",
+                "contact_person": "Other Contact",
+                "phone": "9876543211",
                 "category": str(self.category.id),
                 "stage": str(self.stage.id),
                 "assigned_to": str(self.sales_b.id),

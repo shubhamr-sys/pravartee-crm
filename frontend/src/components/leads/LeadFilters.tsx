@@ -27,8 +27,8 @@ interface LeadFiltersProps {
 
 const ORDER_OPTIONS = [
   { value: "-updated_at", label: "Recently updated" },
-  { value: "customer_name", label: "Customer A–Z" },
-  { value: "-customer_name", label: "Customer Z–A" },
+  { value: "customer_name", label: "Project A–Z" },
+  { value: "-customer_name", label: "Project Z–A" },
   { value: "next_followup_date", label: "Follow-up: Soonest" },
   { value: "-next_followup_date", label: "Follow-up: Latest" },
 ];
@@ -66,7 +66,7 @@ export default function LeadFilters({
           type="search"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Customer, company, phone, email..."
+          placeholder="Project, company, phone, email..."
           className={selectClass}
         />
       </div>

@@ -66,14 +66,23 @@ class LeadManagementTestCase(TestCase):
         data.update(overrides)
         return data
 
+    def _lead_create_payload(self, **overrides):
+        data = {
+            "customer_name": "Acme Corp",
+            "company_name": "Acme Industries",
+            "contact_person": "John Doe",
+            "phone": "9876543210",
+            "stage": str(self.stage_new.id),
+        }
+        data.update(overrides)
+        return data
+
     def test_create_lead_logs_activity(self):
         self._auth(self.salesperson)
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Acme Corp",
-                "company_name": "Acme Industries",
-                "stage": str(self.stage_new.id),
+                **self._lead_create_payload(),
                 "items": [self._item_payload()],
             },
             format="json",
@@ -228,6 +237,8 @@ class LeadManagementTestCase(TestCase):
             {
                 "customer_name": "No Company",
                 "company_name": "",
+                "contact_person": "No Company Contact",
+                "phone": "9876543210",
                 "category": str(self.category.id),
                 "stage": str(self.stage_new.id),
             },
@@ -242,6 +253,8 @@ class LeadManagementTestCase(TestCase):
             {
                 "customer_name": "Bad Qty",
                 "company_name": "Bad Co",
+                "contact_person": "Bad Qty Contact",
+                "phone": "9876543210",
                 "stage": str(self.stage_new.id),
                 "items": [self._item_payload(quantity=-1)],
             },
@@ -328,6 +341,7 @@ class LeadManagementTestCase(TestCase):
             {
                 "customer_name": "Bad Phone",
                 "company_name": "Bad Phone Co",
+                "contact_person": "Bad Phone Contact",
                 "phone": "abc",
                 "category": str(self.category.id),
                 "stage": str(self.stage_new.id),
@@ -335,6 +349,30 @@ class LeadManagementTestCase(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_missing_contact_person_rejected(self):
+        self._auth(self.salesperson)
+        response = self.client.post(
+            "/api/v1/leads/",
+            {
+                **self._lead_create_payload(contact_person=""),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_mobile_number_normalized_on_create(self):
+        self._auth(self.salesperson)
+        response = self.client.post(
+            "/api/v1/leads/",
+            {
+                **self._lead_create_payload(phone="+91 98765 43210"),
+                "items": [self._item_payload()],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["phone"], "9876543210")
 
     def test_lead_summary_endpoint(self):
         Lead.objects.create(
@@ -469,9 +507,10 @@ class LeadManagementTestCase(TestCase):
         create_response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Price Request Lead",
-                "company_name": "Price Co",
-                "stage": str(self.stage_new.id),
+                **self._lead_create_payload(
+                    customer_name="Price Request Lead",
+                    company_name="Price Co",
+                ),
                 "items": [self._item_payload()],
             },
             format="json",

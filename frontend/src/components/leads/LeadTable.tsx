@@ -29,7 +29,10 @@ export default function LeadTable({
     setFeedback(null);
     try {
       const response = await askForPrice(lead.id);
-      setFeedback({ id: lead.id, message: response.message });
+      setFeedback({
+        id: lead.id,
+        message: response.detail ?? "Price request submitted.",
+      });
       onPricingRequested?.(lead.id);
     } catch {
       setFeedback({ id: lead.id, message: "Unable to submit price request." });
@@ -44,7 +47,7 @@ export default function LeadTable({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Customer</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Project</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Company</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Stage</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Category</th>

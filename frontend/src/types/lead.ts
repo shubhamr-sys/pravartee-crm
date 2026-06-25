@@ -48,6 +48,15 @@ export interface LeadItem {
   updated_at: string;
 }
 
+export interface LeadDocument {
+  id: string;
+  original_filename: string;
+  file_url: string | null;
+  file_size: number;
+  uploaded_by_name: string | null;
+  created_at: string;
+}
+
 export interface Lead {
   id: string;
   customer_name: string;
@@ -74,6 +83,7 @@ export interface Lead {
   has_pricing_response?: boolean;
   has_pending_pricing_request?: boolean;
   items?: LeadItem[];
+  documents?: LeadDocument[];
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +139,7 @@ export interface LeadFormData {
   assigned_to?: string;
   record_type?: LeadRecordType;
   items: LeadItemFormData[];
+  pendingDocuments: File[];
 }
 
 export function getRecordTypeLabel(recordType: LeadRecordType): string {

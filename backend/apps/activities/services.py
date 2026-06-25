@@ -36,7 +36,7 @@ def log_lead_created(lead: Lead, user: User | None) -> None:
         lead,
         user,
         ActivityType.LEAD_CREATED,
-        comments=f"Lead created for {lead.customer_name}.",
+        comments=f"Lead created for project {lead.customer_name}.",
     )
     if lead.assigned_to_id:
         log_lead_activity(

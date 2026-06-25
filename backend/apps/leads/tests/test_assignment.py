@@ -61,6 +61,8 @@ class LeadAssignmentTestCase(TestCase):
         payload = {
             "customer_name": "Assignment Customer",
             "company_name": "Assignment Co",
+            "contact_person": "Assign Contact",
+            "phone": "9876543210",
             "category": str(self.category.id),
             "stage": str(self.stage.id),
         }

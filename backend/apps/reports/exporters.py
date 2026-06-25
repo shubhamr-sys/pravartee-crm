@@ -160,7 +160,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
             row += 1
         row += 1
 
-    row = _write_section_title(ws, row, "Top Customers")
+    row = _write_section_title(ws, row, "Top Projects")
     customer_data = [
         [
             item["customer"],
@@ -173,7 +173,7 @@ def build_sales_mbr_workbook(report: dict) -> BytesIO:
     row = _write_table(
         ws,
         row,
-        ["Customer", "Company", "Product Quantity", "Stage"],
+        ["Project", "Company", "Product Quantity", "Stage"],
         customer_data,
     )
 

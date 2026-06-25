@@ -91,6 +91,8 @@ class LeadListCreateView(generics.ListCreateAPIView):
             "items__product",
             "items__brand",
             "items__product_model",
+            "documents",
+            "documents__uploaded_by",
         )
 
     def perform_create(self, serializer):
@@ -120,6 +122,8 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
             "items__product",
             "items__brand",
             "items__product_model",
+            "documents",
+            "documents__uploaded_by",
         )
 
     def perform_destroy(self, instance):

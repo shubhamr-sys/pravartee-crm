@@ -180,12 +180,14 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-semibold text-slate-900">{listTitle}</h1>
           <p className="mt-1 text-sm text-slate-500">{listDescription}</p>
         </div>
-        <Link
-          href="/leads/new"
-          className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
-        >
-          Create Lead
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Link
+            href="/leads/new"
+            className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+          >
+            Create Lead
+          </Link>
+        </div>
       </div>
 
       {isSummaryLoading ? (

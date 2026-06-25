@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import CategorySelectField from "@/components/leads/CategorySelectField";
 import MasterAddModal from "@/components/leads/MasterAddModal";
+import ProductBulkUploadModal from "@/components/leads/ProductBulkUploadModal";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -15,6 +16,7 @@ import {
   fetchMasterProducts,
 } from "@/lib/mastersService";
 import { LEAD_ITEM_UOM_OPTIONS } from "@/lib/leadItemUom";
+import type { ImportedProductLineItem } from "@/lib/productImportService";
 import type { MasterBrand, MasterModel, MasterProduct } from "@/types/master";
 import {
   emptyLeadItem,
@@ -30,6 +32,7 @@ interface LeadItemsEditorProps {
   categories: ProductCategory[];
   onChange: (items: LeadItemFormData[]) => void;
   errors?: Record<string, string>;
+  allowBulkUpload?: boolean;
 }
 
 interface RowMasters {
@@ -43,6 +46,7 @@ export default function LeadItemsEditor({
   categories,
   onChange,
   errors = {},
+  allowBulkUpload = false,
 }: LeadItemsEditorProps) {
   const { canCreateMaster } = useAuth();
   const [rowMasters, setRowMasters] = useState<Record<number, RowMasters>>({});
@@ -52,6 +56,7 @@ export default function LeadItemsEditor({
     initialName: string;
   } | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<
     Record<number, { product?: string; brand?: string; model?: string }>
   >({});
@@ -269,6 +274,101 @@ export default function LeadItemsEditor({
     return brand ? { label: "Brand", value: brand.name } : undefined;
   }
 
+  async function refreshRowMasters() {
+    await Promise.all(items.map((item, index) => loadMastersForRow(index, item)));
+  }
+
+  function handleBulkUploaded(lineItems: ImportedProductLineItem[]) {
+    if (!lineItems.length) {
+      void refreshRowMasters();
+      setIsBulkUploadOpen(false);
+      return;
+    }
+
+    const importedItems: LeadItemFormData[] = lineItems.map((row) => ({
+      category: row.category,
+      product: row.product,
+      brand: row.brand || "",
+      model: row.model || "",
+      quantity: String(row.quantity),
+      uom: row.uom || "NOS",
+      specification: row.specification || "",
+      remarks: row.remarks || "",
+    }));
+
+    const hasOnlyEmpty =
+      items.length === 1 && !items[0].category && !items[0].product;
+    const keptItems = hasOnlyEmpty
+      ? []
+      : items.filter((item) => item.category && item.product);
+    const nextItems = [...keptItems, ...importedItems];
+
+    onChange(nextItems.length ? nextItems : [emptyLeadItem()]);
+
+    const startIndex = keptItems.length;
+    setRowMasters((current) => {
+      const next = { ...current };
+      lineItems.forEach((row, offset) => {
+        const index = startIndex + offset;
+        next[index] = {
+          products: [
+            {
+              id: row.product,
+              name: row.product_name,
+              category: row.category,
+              category_name: row.category_name,
+              created_at: "",
+              updated_at: "",
+            },
+          ],
+          brands: row.brand
+            ? [
+                {
+                  id: row.brand,
+                  name: row.brand_name,
+                  product: row.product,
+                  product_name: row.product_name,
+                  category_name: row.category_name,
+                  created_at: "",
+                  updated_at: "",
+                },
+              ]
+            : [],
+          models: row.model
+            ? [
+                {
+                  id: row.model,
+                  name: row.model_name,
+                  brand: row.brand,
+                  brand_name: row.brand_name,
+                  product_name: row.product_name,
+                  category_name: row.category_name,
+                  created_at: "",
+                  updated_at: "",
+                },
+              ]
+            : [],
+        };
+      });
+      return next;
+    });
+
+    setSelectedLabels((current) => {
+      const next = { ...current };
+      lineItems.forEach((row, offset) => {
+        const index = startIndex + offset;
+        next[index] = {
+          product: row.product_name,
+          brand: row.brand_name || undefined,
+          model: row.model_name || undefined,
+        };
+      });
+      return next;
+    });
+
+    setIsBulkUploadOpen(false);
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -279,13 +379,24 @@ export default function LeadItemsEditor({
             find or add new entries inline.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addItem}
-          className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50"
-        >
-          + Add Product Line
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {allowBulkUpload && (
+            <button
+              type="button"
+              onClick={() => setIsBulkUploadOpen(true)}
+              className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+            >
+              Bulk upload
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={addItem}
+            className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50"
+          >
+            + Add Product Line
+          </button>
+        </div>
       </div>
 
       {errors.items && <p className="text-sm text-red-600">{errors.items}</p>}
@@ -503,6 +614,14 @@ export default function LeadItemsEditor({
         onClose={() => setAddModal(null)}
         onSubmit={handleAddMaster}
       />
+
+      {allowBulkUpload && (
+        <ProductBulkUploadModal
+          isOpen={isBulkUploadOpen}
+          onClose={() => setIsBulkUploadOpen(false)}
+          onUploaded={handleBulkUploaded}
+        />
+      )}
     </section>
   );
 }

@@ -1,12 +1,16 @@
 """
 Lead, pipeline stage, product master data, and lead item models.
 """
+import uuid
+
 from django.conf import settings
 from django.db import models
 
 from apps.core.models import TimeStampedModel, UUIDModel
 
 from .uom import LeadItemUOM
+
+SOLUTION_CATEGORY_NAME = "Solution"
 
 
 class ProductCategory(TimeStampedModel):
@@ -112,7 +116,7 @@ GUT_FEELING_PERCENT_CHOICES = [(value, f"{value}%") for value in range(10, 101, 
 
 
 class Lead(TimeStampedModel):
-    customer_name = models.CharField(max_length=255)
+    customer_name = models.CharField(max_length=255, verbose_name="Project name")
     company_name = models.CharField(max_length=255, blank=True)
     contact_person = models.CharField(max_length=255, blank=True)
     phone = models.CharField(max_length=20, blank=True)
@@ -230,6 +234,39 @@ class LeadItem(TimeStampedModel):
 
     def __str__(self):
         return f"{self.product.name} × {self.quantity}"
+
+
+def lead_document_upload_path(instance, filename):
+    lead_id = instance.lead_id or "unknown"
+    return f"leads/{lead_id}/documents/{uuid.uuid4()}/{filename}"
+
+
+class LeadDocument(TimeStampedModel):
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
+    file = models.FileField(upload_to=lead_document_upload_path, max_length=500)
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="uploaded_lead_documents",
+    )
+
+    class Meta:
+        db_table = "lead_documents"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["lead"]),
+        ]
+
+    def __str__(self):
+        return self.original_filename
 
 
 class FollowUpType(models.TextChoices):
