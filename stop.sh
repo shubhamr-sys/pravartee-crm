@@ -16,6 +16,17 @@ else
   echo "No backend pid file found."
 fi
 
+# Clean up stale listeners from previous start.sh runs
+if command -v lsof >/dev/null 2>&1 && [[ -f "$ROOT/.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  for port in "${BACKEND_PORT:-8084}" "${FRONTEND_PORT:-3034}"; do
+    while read -r pid; do
+      [[ -n "$pid" ]] && kill "$pid" 2>/dev/null && echo "Stopped process on port ${port} (pid ${pid})"
+    done < <(lsof -ti ":${port}" 2>/dev/null || true)
+  done
+fi
+
 # Optional: stop PostgreSQL Docker
 if [[ "${1:-}" == "--all" ]]; then
   if command -v docker >/dev/null 2>&1; then

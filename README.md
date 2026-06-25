@@ -146,9 +146,21 @@ Change ports in root `.env` — backend, frontend, and CORS stay in sync automat
 
 See [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md) for manual setup.
 
+### LAN / mobile GPS (HTTPS)
+
+Browsers block location on `http://<LAN-IP>`. For attendance punch on phones over Wi‑Fi:
+
+```bash
+./start-https.sh
+```
+
+Open `https://<your-server-ip>:3034` and accept the self-signed certificate once per device.
+
+See [deployment/lan-https/README.md](deployment/lan-https/README.md).
+
 ### Production (Ubuntu + HTTPS)
 
-For production with **Let’s Encrypt SSL** (fixes “Not Secure” and enables GPS on phones):
+For production with **Let’s Encrypt SSL** (trusted padlock, no certificate warning):
 
 See [deployment/production/README.md](deployment/production/README.md)
 

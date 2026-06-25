@@ -15,6 +15,10 @@ export function getBackendPort(): string {
 
 export function resolveApiBaseUrl(): string {
   if (typeof window !== "undefined") {
+    // Same-origin requests hit Next.js rewrites → Django (works over HTTPS on LAN).
+    if (process.env.NEXT_PUBLIC_USE_SAME_ORIGIN_API !== "false") {
+      return window.location.origin;
+    }
     const { protocol, hostname } = window.location;
     return `${protocol}//${hostname}:${getBackendPort()}`;
   }
