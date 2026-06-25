@@ -357,13 +357,13 @@ export default function SalesMBRPage() {
 
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-slate-900">
-              Top Customers
+              Top Projects
             </h2>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium">Project</th>
                     <th className="px-4 py-3 font-medium">Company</th>
                     <th className="px-4 py-3 font-medium">Product Qty</th>
                     <th className="px-4 py-3 font-medium">Stage</th>
@@ -376,7 +376,7 @@ export default function SalesMBRPage() {
                         colSpan={4}
                         className="px-4 py-6 text-center text-slate-500"
                       >
-                        No customers in the current pipeline.
+                        No projects in the current pipeline.
                       </td>
                     </tr>
                   ) : (

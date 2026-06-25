@@ -76,7 +76,7 @@ The system shall allow users to:
 
 ## Customer Information
 
-* Customer Name
+* Project Name
 * Company Name
 * Contact Person
 * Mobile Number

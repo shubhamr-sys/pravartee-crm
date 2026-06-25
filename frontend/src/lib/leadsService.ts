@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { normalizeIndianMobile } from "@/lib/phoneValidation";
 import type {
   AssignableUser,
   Lead,
@@ -54,7 +55,7 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
     customer_name: form.customer_name.trim(),
     company_name: form.company_name.trim(),
     contact_person: form.contact_person.trim(),
-    phone: form.phone.trim(),
+    phone: normalizeIndianMobile(form.phone.trim()),
     email: form.email.trim(),
     address: form.address.trim(),
     stage: form.stage,

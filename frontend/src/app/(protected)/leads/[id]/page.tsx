@@ -21,6 +21,7 @@ import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
 import { getUomLabel } from "@/lib/leadItemUom";
+import { formatDocumentSize } from "@/lib/leadDocumentsService";
 import type { Lead } from "@/types/lead";
 import type { PricingRequest } from "@/types/pricing";
 
@@ -96,7 +97,7 @@ export default function LeadDetailPage() {
   async function handleDelete() {
     if (!lead || !canDelete) return;
     const confirmed = window.confirm(
-      `Delete lead for ${lead.customer_name}? This cannot be undone.`,
+      `Delete lead for project ${lead.customer_name}? This cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -135,7 +136,7 @@ export default function LeadDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <LeadBreadcrumb customerName={lead.customer_name} />
+          <LeadBreadcrumb projectName={lead.customer_name} />
           <Link
             href="/leads"
             className="mt-3 inline-block text-sm text-teal-700 hover:text-teal-800"
@@ -223,12 +224,12 @@ export default function LeadDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Customer Information</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Project Information</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <DetailItem label="Customer Name" value={lead.customer_name} />
+            <DetailItem label="Project Name" value={lead.customer_name} />
             <DetailItem label="Company Name" value={lead.company_name} />
             <DetailItem label="Contact Person" value={lead.contact_person} />
-            <DetailItem label="Phone" value={lead.phone} />
+            <DetailItem label="Mobile" value={lead.phone} />
             <DetailItem label="Email" value={lead.email} />
             <div className="rounded-lg bg-slate-50 px-4 py-3 sm:col-span-2">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -327,6 +328,45 @@ export default function LeadDetailPage() {
           </div>
         </section>
       )}
+
+      {lead.items?.some((item) => item.category_name === "Solution") &&
+        lead.documents &&
+        lead.documents.length > 0 && (
+          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">Solution Documents</h2>
+            <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
+              {lead.documents.map((document) => (
+                <li
+                  key={document.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"
+                >
+                  <div>
+                    {document.file_url ? (
+                      <a
+                        href={document.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-teal-700 hover:text-teal-800"
+                      >
+                        {document.original_filename}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-slate-800">
+                        {document.original_filename}
+                      </span>
+                    )}
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {formatDocumentSize(document.file_size)}
+                      {document.uploaded_by_name
+                        ? ` · ${document.uploaded_by_name}`
+                        : ""}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
       <LeadPricingSection
         leadId={lead.id}

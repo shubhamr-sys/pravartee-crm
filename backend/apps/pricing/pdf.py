@@ -38,7 +38,7 @@ def generate_quotation_pdf(pricing_request: PricingRequest) -> bytes:
 
     story.append(Paragraph("Pravartee Sales — Quotation", styles["Title"]))
     story.append(Spacer(1, 8))
-    story.append(Paragraph(f"<b>Customer:</b> {lead.customer_name}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Project:</b> {lead.customer_name}", styles["Normal"]))
     story.append(Paragraph(f"<b>Company:</b> {lead.company_name or '—'}", styles["Normal"]))
     story.append(Paragraph(f"<b>Stage:</b> {lead.stage.name}", styles["Normal"]))
     story.append(Spacer(1, 12))

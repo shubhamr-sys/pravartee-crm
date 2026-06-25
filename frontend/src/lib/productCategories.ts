@@ -4,6 +4,24 @@ export const PRODUCT_CATEGORY_HELP: Record<string, string> = {
   Solution: "Integrated solutions and projects such as CCTV, Audio Visual Systems, Data Centres, Command Centres, Smart Classrooms, and turnkey deployments.",
 };
 
+export const SOLUTION_CATEGORY_NAME = "Solution";
+
+export function getSolutionCategoryId(
+  categories: { id: string; name: string }[],
+): string | undefined {
+  return categories.find((category) => category.name === SOLUTION_CATEGORY_NAME)?.id;
+}
+
+export function hasSolutionLineItems(
+  items: { category: string }[],
+  solutionCategoryId: string | undefined,
+): boolean {
+  if (!solutionCategoryId) return false;
+  return items.some(
+    (item) => item.category === solutionCategoryId && Boolean(item.category),
+  );
+}
+
 export function getCategoryDescriptionById(
   categoryId: string,
   categories: { id: string; name: string; description?: string }[],

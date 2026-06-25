@@ -1,6 +1,6 @@
 Pricing request — {{ lead.customer_name }}
 
-Customer: {{ lead.customer_name }}
+Project: {{ lead.customer_name }}
 Company: {{ lead.company_name|default:"—" }}
 Record type: {{ record_type_display }}
 Stage: {{ lead.stage.name }}

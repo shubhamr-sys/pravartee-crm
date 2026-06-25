@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { isAxiosError } from "axios";
 
 import LeadForm from "@/components/leads/LeadForm";
 import { LoadingState, ErrorState } from "@/components/leads/StatusMessage";
@@ -13,8 +12,8 @@ import {
   fetchAssignableUsers,
   fetchCategories,
   fetchStages,
-  toLeadApiPayload,
 } from "@/lib/leadsService";
+import { uploadLeadDocuments } from "@/lib/leadDocumentsService";
 import type {
   AssignableUser,
   LeadFormData,
@@ -39,6 +38,7 @@ const emptyForm: LeadFormData = {
   assigned_to: "",
   record_type: "LEAD",
   items: [emptyLeadItem()],
+  pendingDocuments: [],
 };
 
 export default function NewLeadPage() {
@@ -53,7 +53,6 @@ export default function NewLeadPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -90,40 +89,22 @@ export default function NewLeadPage() {
 
   async function handleSubmit(values: LeadFormData) {
     setIsSubmitting(true);
-    setSubmitError(null);
     try {
-      const payload = toLeadApiPayload(values);
+      const submitValues = { ...values };
       if (!canAssign) {
-        delete payload.assigned_to;
-      } else if (!payload.assigned_to) {
-        delete payload.assigned_to;
+        delete submitValues.assigned_to;
+      } else if (!submitValues.assigned_to) {
+        delete submitValues.assigned_to;
       }
-      if (!payload.next_followup_date) {
-        delete payload.next_followup_date;
+      if (!submitValues.next_followup_date) {
+        delete submitValues.next_followup_date;
       }
 
-      const lead = await createLead({
-        ...payload,
-        customer_name: values.customer_name,
-        stage: values.stage,
-      });
-      router.push(`/leads/${lead.id}?created=1`);
-    } catch (error) {
-      if (isAxiosError(error)) {
-        const data = error.response?.data;
-        if (typeof data === "object" && data) {
-          const firstError = Object.values(data)[0];
-          setSubmitError(
-            Array.isArray(firstError)
-              ? String(firstError[0])
-              : "Unable to create lead.",
-          );
-        } else {
-          setSubmitError("Unable to create lead.");
-        }
-      } else {
-        setSubmitError("Unable to create lead.");
+      const lead = await createLead(submitValues);
+      if (values.pendingDocuments.length > 0) {
+        await uploadLeadDocuments(lead.id, values.pendingDocuments);
       }
+      router.push(`/leads/${lead.id}?created=1`);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +141,6 @@ export default function NewLeadPage() {
           assignableUsers={assignableUsers}
           canAssign={canAssign}
           isSubmitting={isSubmitting}
-          error={submitError}
           onSubmit={handleSubmit}
         />
       </div>

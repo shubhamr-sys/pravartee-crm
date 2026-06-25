@@ -64,13 +64,22 @@ class LeadItemTestCase(TestCase):
         data.update(overrides)
         return data
 
+    def _lead_payload(self, **overrides):
+        data = {
+            "customer_name": "Acme Corp",
+            "company_name": "Acme Industries",
+            "contact_person": "Jane Doe",
+            "phone": "9876543210",
+            "stage": str(self.stage_new.id),
+        }
+        data.update(overrides)
+        return data
+
     def test_create_lead_with_items(self):
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Acme Corp",
-                "company_name": "Acme Industries",
-                "stage": str(self.stage_new.id),
+                **self._lead_payload(),
                 "items": [self._item_payload()],
             },
             format="json",
@@ -88,9 +97,7 @@ class LeadItemTestCase(TestCase):
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Minimal Products",
-                "company_name": "Minimal Co",
-                "stage": str(self.stage_new.id),
+                **self._lead_payload(customer_name="Minimal Products", company_name="Minimal Co"),
                 "items": [
                     {
                         "category": str(self.category_it.id),
@@ -118,9 +125,7 @@ class LeadItemTestCase(TestCase):
         response = self.client.post(
             "/api/v1/leads/",
             {
-                "customer_name": "Invalid",
-                "company_name": "Invalid Co",
-                "stage": str(self.stage_new.id),
+                **self._lead_payload(customer_name="Invalid", company_name="Invalid Co"),
                 "items": [
                     self._item_payload(brand=str(other_brand.id)),
                 ],

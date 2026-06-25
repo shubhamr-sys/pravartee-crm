@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 interface LeadBreadcrumbProps {
-  customerName?: string;
+  projectName?: string;
 }
 
-export default function LeadBreadcrumb({ customerName }: LeadBreadcrumbProps) {
+export default function LeadBreadcrumb({ projectName }: LeadBreadcrumbProps) {
   return (
     <nav aria-label="Breadcrumb" className="text-sm text-slate-500">
       <ol className="flex flex-wrap items-center gap-2">
@@ -19,10 +19,10 @@ export default function LeadBreadcrumb({ customerName }: LeadBreadcrumbProps) {
             Leads
           </Link>
         </li>
-        {customerName && (
+        {projectName && (
           <>
             <li aria-hidden="true">/</li>
-            <li className="font-medium text-slate-700">{customerName}</li>
+            <li className="font-medium text-slate-700">{projectName}</li>
           </>
         )}
       </ol>

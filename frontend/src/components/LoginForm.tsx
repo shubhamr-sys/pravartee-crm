@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { isAxiosError } from "axios";
 
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { getValidationToastMessage } from "@/lib/formErrors";
 import { useMounted } from "@/hooks/useMounted";
 import { getBackendPort, resolveApiBaseUrl } from "@/lib/api";
 
@@ -33,6 +35,7 @@ function validate(email: string, password: string): FormErrors {
 
 export default function LoginForm() {
   const { login } = useAuth();
+  const { showErrorToast } = useToast();
   const mounted = useMounted();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +48,7 @@ export default function LoginForm() {
     const validationErrors = validate(email, password);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      showErrorToast(getValidationToastMessage(validationErrors));
       return;
     }
 
@@ -59,21 +63,26 @@ export default function LoginForm() {
         const detail = error.response?.data?.detail;
 
         if (status === 401) {
-          setErrors({
-            general:
-              "Invalid email or password. Check your credentials and try again (Safari autofill may use an outdated password).",
-          });
+          const message =
+            "Invalid email or password. Check your credentials and try again (Safari autofill may use an outdated password).";
+          setErrors({ general: message });
+          showErrorToast(message);
         } else if (!error.response) {
-          setErrors({
-            general: `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port ${getBackendPort()}.`,
-          });
+          const message = `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port ${getBackendPort()}.`;
+          setErrors({ general: message });
+          showErrorToast(message);
         } else if (typeof detail === "string") {
           setErrors({ general: detail });
+          showErrorToast(detail);
         } else {
-          setErrors({ general: "Unable to sign in. Please try again." });
+          const message = "Unable to sign in. Please try again.";
+          setErrors({ general: message });
+          showErrorToast(message);
         }
       } else {
-        setErrors({ general: "Unable to sign in. Please try again." });
+        const message = "Unable to sign in. Please try again.";
+        setErrors({ general: message });
+        showErrorToast(message);
       }
     } finally {
       setIsSubmitting(false);
@@ -106,8 +115,17 @@ export default function LoginForm() {
           type="email"
           autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (errors.email) {
+              setErrors((current) => ({ ...current, email: undefined }));
+            }
+          }}
+          className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
+            errors.email
+              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-teal-600 focus:ring-teal-100"
+          }`}
           placeholder="you@company.com"
         />
         {errors.email && (
@@ -124,8 +142,17 @@ export default function LoginForm() {
           type="password"
           autoComplete="current-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (errors.password) {
+              setErrors((current) => ({ ...current, password: undefined }));
+            }
+          }}
+          className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
+            errors.password
+              ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-teal-600 focus:ring-teal-100"
+          }`}
           placeholder="Enter your password"
         />
         {errors.password && (

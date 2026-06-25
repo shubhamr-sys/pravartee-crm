@@ -140,7 +140,7 @@ export default function PublicPricingRequestPage() {
 
         <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-slate-500">Customer</dt>
+            <dt className="text-slate-500">Project</dt>
             <dd className="font-medium">{request.customer_name}</dd>
           </div>
           <div>

@@ -49,6 +49,7 @@ function leadToFormData(lead: Lead): LeadFormData {
     assigned_to: lead.assigned_to || "",
     record_type: lead.record_type || "LEAD",
     items,
+    pendingDocuments: [],
   };
 }
 
@@ -66,7 +67,6 @@ export default function EditLeadPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -106,7 +106,6 @@ export default function EditLeadPage() {
   async function handleSubmit(values: LeadFormData) {
     if (!lead) return;
     setIsSubmitting(true);
-    setSubmitError(null);
 
     const submitValues = { ...values };
     if (!canAssign) {
@@ -116,22 +115,6 @@ export default function EditLeadPage() {
     try {
       await updateLead(lead.id, submitValues);
       router.push(`/leads/${lead.id}?saved=1`);
-    } catch (err) {
-      if (isAxiosError(err)) {
-        const data = err.response?.data;
-        if (typeof data === "object" && data) {
-          const firstError = Object.values(data)[0];
-          setSubmitError(
-            Array.isArray(firstError)
-              ? String(firstError[0])
-              : "Unable to update lead.",
-          );
-        } else {
-          setSubmitError("Unable to update lead.");
-        }
-      } else {
-        setSubmitError("Unable to update lead.");
-      }
     } finally {
       setIsSubmitting(false);
     }
@@ -164,13 +147,14 @@ export default function EditLeadPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <LeadForm
           mode="edit"
+          leadId={lead.id}
+          initialDocuments={lead.documents ?? []}
           initialValues={initialValues}
           stages={stages}
           categories={categories}
           assignableUsers={assignableUsers}
           canAssign={canAssign}
           isSubmitting={isSubmitting}
-          error={submitError}
           cancelHref={`/leads/${lead.id}`}
           onSubmit={handleSubmit}
         />
