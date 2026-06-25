@@ -105,7 +105,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await loginWithEmail(email, password);
     setUser(response.user);
     setSessionReady(true);
-    window.location.replace("/dashboard");
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    window.location.replace(
+      next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard",
+    );
   }, []);
 
   const logout = useCallback(async () => {

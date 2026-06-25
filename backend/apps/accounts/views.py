@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate, get_user_model
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,7 +10,14 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.accounts.permissions import IsAuthenticatedCRMUser, IsCEOOrSalesHead
 
-from .serializers import LogoutSerializer, UserProfileSerializer
+from .serializers import (
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+    LogoutSerializer,
+    ResetPasswordSerializer,
+    UserProfileSerializer,
+)
+from .password_reset_services import request_password_reset, reset_password_with_token
 
 User = get_user_model()
 
@@ -102,6 +110,62 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         return Response(UserProfileSerializer(request.user).data)
+
+
+class ChangePasswordView(APIView):
+    """Allow the authenticated user to change their own password."""
+
+    permission_classes = [IsAuthenticatedCRMUser]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"message": "Password updated successfully."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordView(APIView):
+    """Send a password reset email (max 3 requests per account)."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = request_password_reset(serializer.validated_data["email"])
+        if result.get("limit_reached"):
+            return Response(
+                {"detail": result["message"]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({"message": result["message"]}, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    """Set a new password using a reset token from email."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            reset_password_with_token(data["token"], data["new_password"])
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        return Response(
+            {"message": "Password reset successfully. You can sign in with your new password."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class AssignableUserListView(APIView):

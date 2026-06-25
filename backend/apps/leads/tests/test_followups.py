@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.accounts.choices import UserRole
+from apps.activities.models import ActivityType, LeadActivity
 from apps.leads.followup_services import (
     get_followup_dashboard_metrics,
     sync_lead_next_followup_date,
@@ -61,8 +62,44 @@ class FollowUpTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.lead.refresh_from_db()
         self.assertIsNotNone(self.lead.next_followup_date)
+        self.assertTrue(
+            LeadActivity.objects.filter(
+                lead=self.lead,
+                activity_type=ActivityType.FOLLOWUP_SCHEDULED,
+            ).exists(),
+        )
 
-    def test_complete_followup(self):
+    def test_list_followups_pending_first_then_by_date(self):
+        completed_early = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() - timedelta(days=1),
+            status=FollowUpStatus.COMPLETED,
+            created_by=self.salesperson,
+        )
+        pending_later = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() + timedelta(days=1),
+            status=FollowUpStatus.PENDING,
+            created_by=self.salesperson,
+        )
+        completed_later = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate() + timedelta(days=2),
+            status=FollowUpStatus.COMPLETED,
+            created_by=self.salesperson,
+        )
+
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get(f"/api/v1/leads/{self.lead.id}/follow-ups/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [row["id"] for row in response.data]
+        self.assertEqual(ids[0], str(pending_later.id))
+        self.assertEqual(ids[1:], [str(completed_early.id), str(completed_later.id)])
+
+    def test_complete_followup_logs_activity(self):
         followup = FollowUp.objects.create(
             lead=self.lead,
             assigned_to=self.salesperson,
@@ -72,11 +109,63 @@ class FollowUpTestCase(TestCase):
         self.client.force_authenticate(user=self.salesperson)
         response = self.client.post(
             f"/api/v1/leads/{self.lead.id}/follow-ups/{followup.id}/complete/",
+            {
+                "remarks": "Customer agreed to review quotation.",
+                "action_taken": "Called and discussed requirements.",
+            },
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         followup.refresh_from_db()
         self.assertEqual(followup.status, FollowUpStatus.COMPLETED)
         self.assertIsNotNone(followup.completed_at)
+        self.assertEqual(followup.remarks, "Customer agreed to review quotation.")
+        self.assertEqual(followup.action_taken, "Called and discussed requirements.")
+        self.assertTrue(
+            LeadActivity.objects.filter(
+                lead=self.lead,
+                activity_type=ActivityType.FOLLOWUP_COMPLETED,
+            ).exists(),
+        )
+
+    def test_complete_followup_requires_remarks_and_action(self):
+        followup = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate(),
+            created_by=self.salesperson,
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.post(
+            f"/api/v1/leads/{self.lead.id}/follow-ups/{followup.id}/complete/",
+            {"remarks": "Only remarks"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        followup.refresh_from_db()
+        self.assertEqual(followup.status, FollowUpStatus.PENDING)
+
+    def test_update_followup_logs_activity(self):
+        followup = FollowUp.objects.create(
+            lead=self.lead,
+            assigned_to=self.salesperson,
+            followup_date=timezone.localdate(),
+            created_by=self.salesperson,
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        new_date = (timezone.localdate() + timedelta(days=5)).isoformat()
+        response = self.client.patch(
+            f"/api/v1/leads/{self.lead.id}/follow-ups/{followup.id}/",
+            {"followup_date": new_date, "followup_type": "MEETING"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            LeadActivity.objects.filter(
+                lead=self.lead,
+                activity_type=ActivityType.FOLLOWUP_UPDATED,
+            ).exists(),
+        )
 
     def test_overdue_followup_metrics(self):
         FollowUp.objects.create(

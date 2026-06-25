@@ -18,9 +18,15 @@ Open on phones/tablets:
 https://YOUR_SERVER_IP:3034
 ```
 
-1. Accept the **self-signed certificate** warning (Advanced → Proceed).
-2. Allow **location** when prompted.
-3. Use Attendance → Punch In.
+1. Use the **server IP**, not `localhost` — e.g. `https://172.16.16.24:3034` (phones cannot reach `localhost` on your PC).
+2. Accept the **self-signed certificate** warning:
+   - **Chrome / Edge:** Advanced → Proceed to … (unsafe)
+   - **Chrome desktop:** on the certificate error page, type `thisisunsafe`
+   - **Safari (iPhone):** Show Details → visit this website
+3. Allow **location** when prompted.
+4. Use Attendance → Punch In.
+
+> Cursor’s built-in browser may show wrong certificate dates (e.g. 1970). Use Chrome, Safari, or Edge on the phone instead.
 
 The API is proxied through Next.js (`/api/*` → Django) so there is no mixed-content error.
 

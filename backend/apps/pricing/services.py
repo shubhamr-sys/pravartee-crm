@@ -3,14 +3,13 @@ Pricing request workflow services.
 """
 from decimal import Decimal, InvalidOperation
 
-from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.access import user_can_access_lead
 from apps.activities.models import ActivityType
 from apps.activities.services import log_lead_activity
-from apps.leads.models import Lead
+from apps.leads.models import Lead, LeadItem
 
 from .emails import send_pricing_request_email, send_pricing_response_notification
 from .models import (
@@ -19,15 +18,6 @@ from .models import (
     PricingResponseLineItem,
     PricingSubmissionMode,
 )
-from .pdf import generate_quotation_pdf
-
-User = None  # lazy import to avoid circular
-
-
-def _get_user_model():
-    from django.contrib.auth import get_user_model
-
-    return get_user_model()
 
 
 def create_pricing_request(lead: Lead, user) -> PricingRequest:
@@ -70,65 +60,53 @@ def _parse_decimal(value) -> Decimal | None:
 def submit_pricing_response(
     pricing_request: PricingRequest,
     *,
-    vendor_quote_pdf=None,
     line_items_data: list[dict] | None = None,
     response_remarks: str = "",
 ) -> PricingRequest:
-    """Process public pricing submission (vendor PDF and/or manual line pricing)."""
+    """Save manual line-item pricing from the public pricing form."""
     if pricing_request.status == PricingRequestStatus.RESPONDED:
         raise ValueError("This pricing request has already been responded to.")
 
     lead = pricing_request.lead
-    has_vendor_pdf = vendor_quote_pdf is not None
-    has_manual = bool(line_items_data)
+    if not line_items_data:
+        raise ValueError("Enter at least one unit price.")
 
-    if not has_vendor_pdf and not has_manual:
-        raise ValueError("Upload a vendor quotation PDF or enter manual pricing.")
+    pricing_request.submission_mode = PricingSubmissionMode.MANUAL_PRICING
+    lead_item_ids = {str(x) for x in lead.items.values_list("id", flat=True)}
+    priced_item_ids: set[str] = set()
+    for row in line_items_data:
+        lead_item_id = str(row.get("lead_item_id"))
+        if lead_item_id not in lead_item_ids:
+            raise ValueError("Invalid lead line item.")
+        unit_price = _parse_decimal(row.get("unit_price"))
+        if unit_price is None:
+            continue
+        lead_item = LeadItem.objects.select_related(
+            "category",
+            "product",
+            "brand",
+            "product_model",
+        ).get(pk=lead_item_id)
+        PricingResponseLineItem.objects.update_or_create(
+            pricing_request=pricing_request,
+            lead_item_id=lead_item_id,
+            defaults={
+                "unit_price": unit_price,
+                "remarks": row.get("remarks", ""),
+                "category_name": lead_item.category.name,
+                "product_name": lead_item.product.name,
+                "brand_name": lead_item.brand.name if lead_item.brand_id else "",
+                "model_name": (
+                    lead_item.product_model.name if lead_item.product_model_id else ""
+                ),
+                "quantity": lead_item.quantity,
+                "specification": lead_item.specification or "",
+            },
+        )
+        priced_item_ids.add(lead_item_id)
 
-    if has_vendor_pdf:
-        pricing_request.vendor_quote_pdf = vendor_quote_pdf
-        pricing_request.submission_mode = PricingSubmissionMode.VENDOR_UPLOAD
-        log_lead_activity(
-            lead,
-            None,
-            ActivityType.VENDOR_QUOTE_UPLOADED,
-            comments="Vendor quotation PDF uploaded.",
-        )
-
-    if has_manual:
-        pricing_request.submission_mode = (
-            PricingSubmissionMode.MANUAL_PRICING
-            if not has_vendor_pdf
-            else pricing_request.submission_mode
-        )
-        lead_item_ids = {str(x) for x in lead.items.values_list("id", flat=True)}
-        for row in line_items_data or []:
-            lead_item_id = str(row.get("lead_item_id"))
-            if lead_item_id not in lead_item_ids:
-                raise ValueError("Invalid lead line item.")
-            unit_price = _parse_decimal(row.get("unit_price"))
-            PricingResponseLineItem.objects.update_or_create(
-                pricing_request=pricing_request,
-                lead_item_id=lead_item_id,
-                defaults={
-                    "unit_price": unit_price,
-                    "remarks": row.get("remarks", ""),
-                },
-            )
-
-        pdf_bytes = generate_quotation_pdf(pricing_request)
-        filename = f"quotation_{pricing_request.id}.pdf"
-        pricing_request.generated_quotation_pdf.save(
-            filename,
-            ContentFile(pdf_bytes),
-            save=False,
-        )
-        log_lead_activity(
-            lead,
-            None,
-            ActivityType.QUOTATION_GENERATED,
-            comments="Quotation PDF generated from manual pricing.",
-        )
+    if priced_item_ids != lead_item_ids:
+        raise ValueError("Enter a unit price for every product line.")
 
     pricing_request.response_remarks = response_remarks
     pricing_request.status = PricingRequestStatus.RESPONDED

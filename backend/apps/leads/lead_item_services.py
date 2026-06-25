@@ -17,10 +17,23 @@ def sync_lead_from_items(lead: Lead) -> None:
 
 
 def replace_lead_items(lead: Lead, items_data: list[dict]) -> list[LeadItem]:
-    """Replace all items on a lead and sync lead category."""
-    lead.items.all().delete()
-    created: list[LeadItem] = []
-    for item_data in items_data:
-        created.append(LeadItem.objects.create(lead=lead, **item_data))
+    """Sync lead line items, preserving IDs when provided so pricing links stay intact."""
+    keep_ids: set = set()
+    result: list[LeadItem] = []
+
+    for raw in items_data:
+        data = dict(raw)
+        item_id = data.pop("id", None)
+        if item_id and LeadItem.objects.filter(pk=item_id, lead=lead).exists():
+            item = LeadItem.objects.get(pk=item_id, lead=lead)
+            for key, value in data.items():
+                setattr(item, key, value)
+            item.save()
+        else:
+            item = LeadItem.objects.create(lead=lead, **data)
+        keep_ids.add(item.pk)
+        result.append(item)
+
+    lead.items.exclude(pk__in=keep_ids).delete()
     sync_lead_from_items(lead)
-    return created
+    return result

@@ -29,7 +29,10 @@ export default function LeadTable({
     setFeedback(null);
     try {
       const response = await askForPrice(lead.id);
-      setFeedback({ id: lead.id, message: response.message });
+      setFeedback({
+        id: lead.id,
+        message: response.detail ?? "Price request submitted.",
+      });
       onPricingRequested?.(lead.id);
     } catch {
       setFeedback({ id: lead.id, message: "Unable to submit price request." });
@@ -106,15 +109,13 @@ export default function LeadTable({
                       >
                         View
                       </Link>
-                      {lead.latest_price_pdf_url && (
-                        <a
-                          href={lead.latest_price_pdf_url}
-                          target="_blank"
-                          rel="noreferrer"
+                      {lead.has_pricing_response && (
+                        <Link
+                          href={`/leads/${lead.id}#pricing`}
                           className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
                         >
-                          View price
-                        </a>
+                          View pricing
+                        </Link>
                       )}
                       <button
                         type="button"
@@ -122,7 +123,7 @@ export default function LeadTable({
                         disabled={isSending || isAwaitingPricing}
                         title={
                           isAwaitingPricing
-                            ? "Waiting for pricing response and PDF generation"
+                            ? "Waiting for pricing response"
                             : undefined
                         }
                         className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"

@@ -162,6 +162,29 @@ class LeadManagementTestCase(TestCase):
             ).exists(),
         )
 
+    def test_gut_feeling_update_logs_activity(self):
+        lead = Lead.objects.create(
+            customer_name="Gut Feeling Test",
+            company_name="Test Co",
+            category=self.category,
+            stage=self.stage_new,
+            assigned_to=self.salesperson,
+            gut_feeling_percent=20,
+        )
+        self._auth(self.salesperson)
+        self.client.patch(
+            f"/api/v1/leads/{lead.id}/",
+            {"gut_feeling_percent": 80},
+            format="json",
+        )
+        activity = LeadActivity.objects.filter(
+            lead=lead,
+            activity_type=ActivityType.GUT_FEELING_UPDATED,
+        ).first()
+        self.assertIsNotNone(activity)
+        self.assertEqual(activity.old_value, "20%")
+        self.assertEqual(activity.new_value, "80%")
+
     def test_lead_activities_endpoint(self):
         lead = Lead.objects.create(
             customer_name="Timeline Test",

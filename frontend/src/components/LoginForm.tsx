@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { isAxiosError } from "axios";
 
@@ -48,7 +49,7 @@ export default function LoginForm() {
     const validationErrors = validate(email, password);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      showErrorToast(getValidationToastMessage(validationErrors));
+      showErrorToast(getValidationToastMessage(validationErrors as Record<string, string>));
       return;
     }
 
@@ -63,26 +64,26 @@ export default function LoginForm() {
         const detail = error.response?.data?.detail;
 
         if (status === 401) {
-          const message =
-            "Invalid email or password. Check your credentials and try again (Safari autofill may use an outdated password).";
-          setErrors({ general: message });
-          showErrorToast(message);
+          setErrors({
+            general:
+              "Invalid email or password. Check your credentials and try again (Safari autofill may use an outdated password).",
+          });
         } else if (!error.response) {
-          const message = `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port ${getBackendPort()}.`;
-          setErrors({ general: message });
-          showErrorToast(message);
+          setErrors({
+            general: `Cannot reach the API at ${resolveApiBaseUrl()}. Make sure the backend is running on port ${getBackendPort()}.`,
+          });
         } else if (typeof detail === "string") {
           setErrors({ general: detail });
-          showErrorToast(detail);
+        } else if (status && status >= 500) {
+          setErrors({
+            general:
+              "The server encountered an error. Try again in a moment or contact support if this continues.",
+          });
         } else {
-          const message = "Unable to sign in. Please try again.";
-          setErrors({ general: message });
-          showErrorToast(message);
+          setErrors({ general: "Unable to sign in. Please try again." });
         }
       } else {
-        const message = "Unable to sign in. Please try again.";
-        setErrors({ general: message });
-        showErrorToast(message);
+        setErrors({ general: "Unable to sign in. Please try again." });
       }
     } finally {
       setIsSubmitting(false);
@@ -90,21 +91,15 @@ export default function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-5"
-      noValidate
-      // Prevent native GET submit if React has not hydrated yet.
-      action="#"
-    >
-      {errors.general && (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate action="#">
+      {errors.general ? (
         <div
           role="alert"
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
           {errors.general}
         </div>
-      )}
+      ) : null}
 
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
@@ -117,8 +112,12 @@ export default function LoginForm() {
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
-            if (errors.email) {
-              setErrors((current) => ({ ...current, email: undefined }));
+            if (errors.email || errors.general) {
+              setErrors((current) => ({
+                ...current,
+                email: undefined,
+                general: undefined,
+              }));
             }
           }}
           className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
@@ -128,9 +127,9 @@ export default function LoginForm() {
           }`}
           placeholder="you@company.com"
         />
-        {errors.email && (
+        {errors.email ? (
           <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-        )}
+        ) : null}
       </div>
 
       <div>
@@ -144,8 +143,12 @@ export default function LoginForm() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            if (errors.password) {
-              setErrors((current) => ({ ...current, password: undefined }));
+            if (errors.password || errors.general) {
+              setErrors((current) => ({
+                ...current,
+                password: undefined,
+                general: undefined,
+              }));
             }
           }}
           className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:ring-2 ${
@@ -155,14 +158,21 @@ export default function LoginForm() {
           }`}
           placeholder="Enter your password"
         />
-        {errors.password && (
+        {errors.password ? (
           <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-        )}
+        ) : null}
+        <p className="mt-2 text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-teal-700 hover:text-teal-800"
+          >
+            Forgot password?
+          </Link>
+        </p>
       </div>
 
       <button
-        type="button"
-        onClick={() => void handleSubmit()}
+        type="submit"
         disabled={!mounted || isSubmitting}
         className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >

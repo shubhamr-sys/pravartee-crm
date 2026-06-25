@@ -14,9 +14,10 @@ from apps.core.models import TimeStampedModel
 
 from .choices import UserRole
 from .managers import CRMUserManager
+from .password_reset_models import PasswordResetToken  # noqa: F401
 
 # Re-export for convenience: from apps.accounts.models import UserRole
-__all__ = ["User", "UserRole"]
+__all__ = ["User", "UserRole", "PasswordResetToken"]
 
 
 class User(TimeStampedModel, AbstractUser):
@@ -51,6 +52,10 @@ class User(TimeStampedModel, AbstractUser):
     is_active = models.BooleanField(
         default=True,
         help_text="Inactive users cannot sign in.",
+    )
+    password_reset_email_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of forgot-password emails sent (max 3 per account).",
     )
     # created_at, updated_at — from TimeStampedModel
     # id (UUID) — from TimeStampedModel

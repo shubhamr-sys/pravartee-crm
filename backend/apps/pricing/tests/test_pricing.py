@@ -164,16 +164,19 @@ class PricingWorkflowTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         pricing_request.refresh_from_db()
         self.assertEqual(pricing_request.status, PricingRequestStatus.RESPONDED)
-        self.assertTrue(pricing_request.generated_quotation_pdf)
+        self.assertFalse(pricing_request.generated_quotation_pdf)
+        line_item = pricing_request.line_items.get()
+        self.assertEqual(line_item.unit_price, Decimal("50000.00"))
+        self.assertEqual(line_item.product_name, "Laptop")
         self.assertTrue(
             LeadActivity.objects.filter(
                 lead=self.lead,
-                activity_type=ActivityType.QUOTATION_GENERATED,
+                activity_type=ActivityType.PRICING_RESPONSE_RECEIVED,
             ).exists(),
         )
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_lead_includes_latest_price_pdf_url_after_response(self):
+    def test_lead_includes_has_pricing_response_after_response(self):
         pricing_request = PricingRequest.objects.create(
             lead=self.lead,
             token=PricingRequest.generate_token(),
@@ -195,7 +198,103 @@ class PricingWorkflowTestCase(TestCase):
         self.client.force_authenticate(user=self.salesperson)
         response = self.client.get(f"/api/v1/leads/{self.lead.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNotNone(response.data["latest_price_pdf_url"])
+        self.assertTrue(response.data["has_pricing_response"])
+
+    def test_lead_pricing_list_includes_line_item_prices(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+        )
+        self.client.post(
+            f"/api/v1/pricing/public/{pricing_request.token}/submit/",
+            {
+                "line_items": [
+                    {
+                        "lead_item_id": str(self.lead_item.id),
+                        "unit_price": "50000.00",
+                        "remarks": "Best vendor rate",
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get(f"/api/v1/pricing/leads/{self.lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data[0]["line_items"]), 1)
+        self.assertEqual(response.data[0]["line_items"][0]["unit_price"], "50000.00")
+
+    def test_lead_pricing_list_legacy_responded_without_prices_shows_lead_items(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.RESPONDED,
+            response_remarks="JSK",
+            responded_at=timezone.now(),
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get(f"/api/v1/pricing/leads/{self.lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data[0]["line_items"]), 1)
+        self.assertIsNone(response.data[0]["line_items"][0]["unit_price"])
+        self.assertEqual(response.data[0]["line_items"][0]["product_name"], "Laptop")
+
+    def test_lead_edit_preserves_pricing_when_item_ids_sent(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+        )
+        submit_response = self.client.post(
+            f"/api/v1/pricing/public/{pricing_request.token}/submit/",
+            {
+                "line_items": [
+                    {
+                        "lead_item_id": str(self.lead_item.id),
+                        "unit_price": "50000.00",
+                        "remarks": "Best vendor rate",
+                    }
+                ],
+                "response_remarks": "Submitted manually",
+            },
+            format="json",
+        )
+        self.assertEqual(submit_response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.salesperson)
+        edit_response = self.client.patch(
+            f"/api/v1/leads/{self.lead.id}/",
+            {
+                "notes": "Updated after pricing",
+                "items": [
+                    {
+                        "id": str(self.lead_item.id),
+                        "category": str(self.category.id),
+                        "product": str(self.product.id),
+                        "brand": str(self.brand.id),
+                        "model": str(self.model.id),
+                        "quantity": 2,
+                        "uom": "NOS",
+                        "specification": "16GB RAM",
+                        "remarks": "Urgent",
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(edit_response.status_code, status.HTTP_200_OK)
+
+        pricing_response = self.client.get(f"/api/v1/pricing/leads/{self.lead.id}/")
+        self.assertEqual(pricing_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(pricing_response.data[0]["line_items"]), 1)
+        self.assertEqual(
+            pricing_response.data[0]["line_items"][0]["unit_price"],
+            "50000.00",
+        )
 
     def test_public_submit_manual_pricing_multipart_json_line_items(self):
         pricing_request = PricingRequest.objects.create(
@@ -224,7 +323,31 @@ class PricingWorkflowTestCase(TestCase):
         pricing_request.refresh_from_db()
         self.assertEqual(pricing_request.status, PricingRequestStatus.RESPONDED)
 
-    def test_public_submit_vendor_pdf(self):
+    def test_public_submit_requires_all_line_item_prices(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+        )
+        response = self.client.post(
+            f"/api/v1/pricing/public/{pricing_request.token}/submit/",
+            {
+                "line_items": [
+                    {
+                        "lead_item_id": str(self.lead_item.id),
+                        "unit_price": "",
+                        "remarks": "",
+                    }
+                ],
+                "response_remarks": "Missing price",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        pricing_request.refresh_from_db()
+        self.assertEqual(pricing_request.status, PricingRequestStatus.PENDING)
+
+    def test_public_submit_requires_line_item_prices(self):
         pricing_request = PricingRequest.objects.create(
             lead=self.lead,
             token=PricingRequest.generate_token(),
@@ -240,15 +363,9 @@ class PricingWorkflowTestCase(TestCase):
             {"vendor_quote_pdf": pdf, "response_remarks": "Vendor quote attached"},
             format="multipart",
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         pricing_request.refresh_from_db()
-        self.assertTrue(pricing_request.vendor_quote_pdf)
-        self.assertTrue(
-            LeadActivity.objects.filter(
-                lead=self.lead,
-                activity_type=ActivityType.VENDOR_QUOTE_UPLOADED,
-            ).exists(),
-        )
+        self.assertEqual(pricing_request.status, PricingRequestStatus.PENDING)
 
     def test_salesperson_cannot_view_other_lead_pricing(self):
         other_lead = Lead.objects.create(

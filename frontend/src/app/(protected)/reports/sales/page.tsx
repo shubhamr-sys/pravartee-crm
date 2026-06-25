@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { formFieldClassLg, formLabelClass } from "@/lib/formStyles";
 import { getAccessToken } from "@/lib/auth";
 import {
   fetchSalesMBRReport,
@@ -175,14 +176,14 @@ export default function SalesMBRPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label htmlFor="month" className="mb-1.5 block text-sm font-medium">
+            <label htmlFor="month" className={formLabelClass}>
               Month
             </label>
             <select
               id="month"
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className={formFieldClassLg}
             >
               {MONTHS.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -192,14 +193,14 @@ export default function SalesMBRPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="year" className="mb-1.5 block text-sm font-medium">
+            <label htmlFor="year" className={formLabelClass}>
               Year
             </label>
             <select
               id="year"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className={formFieldClassLg}
             >
               {yearOptions.map((item) => (
                 <option key={item} value={item}>
@@ -209,17 +210,14 @@ export default function SalesMBRPage() {
             </select>
           </div>
           <div>
-            <label
-              htmlFor="salesperson"
-              className="mb-1.5 block text-sm font-medium"
-            >
+            <label htmlFor="salesperson" className={formLabelClass}>
               Assignee
             </label>
             <select
               id="salesperson"
               value={salesperson}
               onChange={(e) => setSalesperson(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className={formFieldClassLg}
             >
               <option value="">All assignees</option>
               {report?.salespeople.map((sp) => (
@@ -230,14 +228,14 @@ export default function SalesMBRPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="category" className="mb-1.5 block text-sm font-medium">
+            <label htmlFor="category" className={formLabelClass}>
               Category
             </label>
             <select
               id="category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className={formFieldClassLg}
             >
               <option value="">All categories</option>
               {report?.categories.map((item) => (

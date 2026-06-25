@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
     "172.16.*",
     "192.168.*",
     "10.*",
+    "*.trycloudflare.com",
+    "crm.pravarteesales.com",
     ...(lanIp ? [lanIp] : []),
   ],
 };

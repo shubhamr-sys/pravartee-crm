@@ -33,7 +33,7 @@ const emptyForm: LeadFormData = {
   longitude: "",
   category: "",
   stage: "",
-  next_followup_date: "",
+  gut_feeling_percent: "",
   notes: "",
   assigned_to: "",
   record_type: "LEAD",
@@ -95,9 +95,6 @@ export default function NewLeadPage() {
         delete submitValues.assigned_to;
       } else if (!submitValues.assigned_to) {
         delete submitValues.assigned_to;
-      }
-      if (!submitValues.next_followup_date) {
-        delete submitValues.next_followup_date;
       }
 
       const lead = await createLead(submitValues);

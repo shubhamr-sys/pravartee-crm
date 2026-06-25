@@ -112,6 +112,9 @@ class LeadRecordType(models.TextChoices):
     VISIT = "VISIT", "Visit"
 
 
+GUT_FEELING_PERCENT_CHOICES = [(value, f"{value}%") for value in range(10, 101, 10)]
+
+
 class Lead(TimeStampedModel):
     customer_name = models.CharField(max_length=255, verbose_name="Project name")
     company_name = models.CharField(max_length=255, blank=True)
@@ -156,6 +159,11 @@ class Lead(TimeStampedModel):
         LeadStage,
         on_delete=models.PROTECT,
         related_name="leads",
+    )
+    gut_feeling_percent = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        choices=GUT_FEELING_PERCENT_CHOICES,
     )
     is_active = models.BooleanField(default=True)
 
@@ -293,6 +301,7 @@ class FollowUp(TimeStampedModel):
         default=FollowUpType.CALL,
     )
     remarks = models.TextField(blank=True)
+    action_taken = models.TextField(blank=True)
     status = models.CharField(
         max_length=20,
         choices=FollowUpStatus.choices,

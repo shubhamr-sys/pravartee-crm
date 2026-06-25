@@ -4,7 +4,7 @@ Pricing request serializers.
 from rest_framework import serializers
 
 from apps.leads.models import LeadItem
-from apps.pricing.models import PricingRequest, PricingResponseLineItem
+from apps.pricing.models import PricingRequest, PricingRequestStatus, PricingResponseLineItem
 
 
 class PricingLineItemReadSerializer(serializers.ModelSerializer):
@@ -33,21 +33,13 @@ class PricingLineItemReadSerializer(serializers.ModelSerializer):
 
 
 class PricingResponseLineItemSerializer(serializers.ModelSerializer):
-    lead_item_id = serializers.UUIDField(source="lead_item.id", read_only=True)
-    category_name = serializers.CharField(source="lead_item.category.name", read_only=True)
-    product_name = serializers.CharField(source="lead_item.product.name", read_only=True)
-    brand_name = serializers.CharField(
-        source="lead_item.brand.name",
-        read_only=True,
-        allow_null=True,
-    )
-    model_name = serializers.CharField(
-        source="lead_item.product_model.name",
-        read_only=True,
-        allow_null=True,
-    )
-    quantity = serializers.IntegerField(source="lead_item.quantity", read_only=True)
-    specification = serializers.CharField(source="lead_item.specification", read_only=True)
+    lead_item_id = serializers.SerializerMethodField()
+    category_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    brand_name = serializers.SerializerMethodField()
+    model_name = serializers.SerializerMethodField()
+    quantity = serializers.SerializerMethodField()
+    specification = serializers.SerializerMethodField()
 
     class Meta:
         model = PricingResponseLineItem
@@ -64,12 +56,54 @@ class PricingResponseLineItemSerializer(serializers.ModelSerializer):
             "remarks",
         ]
 
+    def get_lead_item_id(self, obj):
+        return str(obj.lead_item_id) if obj.lead_item_id else None
+
+    def _from_lead_item(self, obj, attr: str, snapshot: str):
+        if obj.lead_item_id:
+            lead_item = obj.lead_item
+            if attr == "category_name":
+                return lead_item.category.name
+            if attr == "product_name":
+                return lead_item.product.name
+            if attr == "brand_name":
+                return lead_item.brand.name if lead_item.brand_id else None
+            if attr == "model_name":
+                return lead_item.product_model.name if lead_item.product_model_id else None
+            if attr == "quantity":
+                return lead_item.quantity
+            if attr == "specification":
+                return lead_item.specification
+        value = getattr(obj, snapshot, None)
+        if attr in ("brand_name", "model_name") and value == "":
+            return None
+        return value
+
+    def get_category_name(self, obj):
+        return self._from_lead_item(obj, "category_name", "category_name")
+
+    def get_product_name(self, obj):
+        return self._from_lead_item(obj, "product_name", "product_name")
+
+    def get_brand_name(self, obj):
+        return self._from_lead_item(obj, "brand_name", "brand_name")
+
+    def get_model_name(self, obj):
+        return self._from_lead_item(obj, "model_name", "model_name")
+
+    def get_quantity(self, obj):
+        return self._from_lead_item(obj, "quantity", "quantity")
+
+    def get_specification(self, obj):
+        return self._from_lead_item(obj, "specification", "specification")
+
 
 class PricingRequestListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     requested_by_name = serializers.SerializerMethodField()
     vendor_quote_url = serializers.SerializerMethodField()
     generated_quotation_url = serializers.SerializerMethodField()
+    line_items = serializers.SerializerMethodField()
 
     class Meta:
         model = PricingRequest
@@ -86,6 +120,7 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
             "response_remarks",
             "vendor_quote_url",
             "generated_quotation_url",
+            "line_items",
         ]
         read_only_fields = fields
 
@@ -93,6 +128,35 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
         if obj.requested_by_id:
             return obj.requested_by.get_full_name() or obj.requested_by.username
         return None
+
+    def get_line_items(self, obj):
+        response_items = list(obj.line_items.all())
+        if response_items:
+            return PricingResponseLineItemSerializer(response_items, many=True).data
+
+        if obj.status != PricingRequestStatus.RESPONDED:
+            return []
+
+        # Legacy responses (e.g. vendor PDF only) may have no stored unit prices.
+        rows = []
+        for lead_item in obj.lead.items.all():
+            rows.append(
+                {
+                    "id": str(lead_item.id),
+                    "lead_item_id": str(lead_item.id),
+                    "category_name": lead_item.category.name,
+                    "product_name": lead_item.product.name,
+                    "brand_name": lead_item.brand.name if lead_item.brand_id else None,
+                    "model_name": (
+                        lead_item.product_model.name if lead_item.product_model_id else None
+                    ),
+                    "quantity": lead_item.quantity,
+                    "specification": lead_item.specification,
+                    "unit_price": None,
+                    "remarks": "",
+                }
+            )
+        return rows
 
     def _file_url(self, file_field):
         if not file_field:
@@ -110,7 +174,6 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
 
 
 class PricingRequestDetailSerializer(PricingRequestListSerializer):
-    line_items = PricingResponseLineItemSerializer(many=True, read_only=True)
     lead_line_items = PricingLineItemReadSerializer(
         source="lead.items",
         many=True,
@@ -119,7 +182,6 @@ class PricingRequestDetailSerializer(PricingRequestListSerializer):
 
     class Meta(PricingRequestListSerializer.Meta):
         fields = PricingRequestListSerializer.Meta.fields + [
-            "line_items",
             "lead_line_items",
             "token",
         ]
@@ -150,14 +212,37 @@ class PublicPricingRequestSerializer(serializers.ModelSerializer):
 
 class PublicPricingSubmitSerializer(serializers.Serializer):
     response_remarks = serializers.CharField(required=False, allow_blank=True, default="")
-    vendor_quote_pdf = serializers.FileField(required=False, allow_null=True)
     line_items = serializers.ListField(
         child=serializers.DictField(),
-        required=False,
-        allow_empty=True,
+        required=True,
+        allow_empty=False,
     )
 
-    def validate_vendor_quote_pdf(self, value):
-        if value and not value.name.lower().endswith(".pdf"):
-            raise serializers.ValidationError("Vendor quote must be a PDF file.")
+    def validate_line_items(self, value):
+        if not value:
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
+        pricing_request = self.context.get("pricing_request")
+        expected_ids = None
+        if pricing_request is not None:
+            expected_ids = {
+                str(item_id)
+                for item_id in pricing_request.lead.items.values_list("id", flat=True)
+            }
+
+        priced_ids: set[str] = set()
+        for row in value:
+            if row.get("unit_price") in (None, ""):
+                continue
+            lead_item_id = row.get("lead_item_id")
+            if not lead_item_id:
+                raise serializers.ValidationError("Each line must include lead_item_id.")
+            priced_ids.add(str(lead_item_id))
+
+        if not priced_ids:
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
+        if expected_ids is not None and priced_ids != expected_ids:
+            raise serializers.ValidationError("Enter a unit price for every product line.")
+
         return value

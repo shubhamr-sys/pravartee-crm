@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LoadingState, ErrorState } from "@/components/leads/StatusMessage";
-import { formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import {
   createPricingRequest,
   fetchLeadPricingRequests,
@@ -23,20 +23,25 @@ function hierarchyLabel(item: {
     .join(" → ");
 }
 
-function pricingPdfUrl(request: PricingRequest | null | undefined): string | null {
-  if (!request) return null;
+function hasLineItemPrices(request: PricingRequest): boolean {
+  return Boolean(
+    request.line_items?.some((item) => item.unit_price != null && item.unit_price !== ""),
+  );
+}
+
+function legacyPricingPdfUrl(request: PricingRequest): string | null {
   return request.generated_quotation_url || request.vendor_quote_url || null;
 }
 
 interface LeadPricingSectionProps {
   leadId: string;
-  onQuotationReady?: (request: PricingRequest) => void;
+  onPricingReady?: (request: PricingRequest) => void;
   onUpdated?: () => void;
 }
 
 export default function LeadPricingSection({
   leadId,
-  onQuotationReady,
+  onPricingReady,
   onUpdated,
 }: LeadPricingSectionProps) {
   const [requests, setRequests] = useState<PricingRequest[]>([]);
@@ -60,15 +65,14 @@ export default function LeadPricingSection({
 
         for (const request of data) {
           const previousStatus = prevStatuses.get(request.id);
-          const pdfUrl = pricingPdfUrl(request);
 
           if (
             hasInitializedRef.current &&
             previousStatus === "PENDING" &&
             request.status === "RESPONDED" &&
-            pdfUrl
+            hasLineItemPrices(request)
           ) {
-            onQuotationReady?.(request);
+            onPricingReady?.(request);
             shouldNotifyParent = true;
           }
 
@@ -91,7 +95,7 @@ export default function LeadPricingSection({
         }
       }
     },
-    [leadId, onQuotationReady, onUpdated],
+    [leadId, onPricingReady, onUpdated],
   );
 
   useEffect(() => {
@@ -127,21 +131,22 @@ export default function LeadPricingSection({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section
+      id="pricing"
+      className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Pricing</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Request pricing from Commercial / Purchase and track responses.
+            Request pricing from Commercial / Purchase and view submitted prices here.
           </p>
         </div>
         <button
           type="button"
           disabled={isSubmitting || hasPendingRequest}
           title={
-            hasPendingRequest
-              ? "Waiting for pricing response and PDF generation"
-              : undefined
+            hasPendingRequest ? "Waiting for pricing response" : undefined
           }
           onClick={() => void handleAskForPrice()}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -197,58 +202,36 @@ export default function LeadPricingSection({
                 <p className="mt-2 text-sm text-slate-700">{request.response_remarks}</p>
               )}
 
-              {request.status === "RESPONDED" && pricingPdfUrl(request) && (
+              {request.status === "RESPONDED" && hasLineItemPrices(request) && (
                 <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
-                  {request.generated_quotation_url ? (
+                  Prices submitted — see line items below.
+                </div>
+              )}
+
+              {request.status === "RESPONDED" && !hasLineItemPrices(request) && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {legacyPricingPdfUrl(request) ? (
                     <>
-                      Quotation PDF is ready.{" "}
+                      This response has no unit prices on file. A quotation PDF was uploaded
+                      instead.{" "}
                       <a
-                        href={request.generated_quotation_url}
+                        href={legacyPricingPdfUrl(request)!}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-medium text-teal-800 underline hover:text-teal-900"
+                        className="font-medium text-amber-950 underline hover:text-amber-900"
                       >
-                        Download quotation PDF
+                        Download pricing PDF
                       </a>
                     </>
                   ) : (
                     <>
-                      Vendor quote received.{" "}
-                      <a
-                        href={request.vendor_quote_url!}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-medium text-teal-800 underline hover:text-teal-900"
-                      >
-                        Download vendor PDF
-                      </a>
+                      This response has no unit prices recorded (only remarks were saved).
+                      Ask Commercial / Purchase to submit prices again using{" "}
+                      <span className="font-medium">Ask for Price</span>.
                     </>
                   )}
                 </div>
               )}
-
-              <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                {request.vendor_quote_url && (
-                  <a
-                    href={request.vendor_quote_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-teal-700 hover:underline"
-                  >
-                    Vendor Quote PDF
-                  </a>
-                )}
-                {request.generated_quotation_url && (
-                  <a
-                    href={request.generated_quotation_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-teal-700 hover:underline"
-                  >
-                    Generated Quotation PDF
-                  </a>
-                )}
-              </div>
 
               {request.line_items && request.line_items.length > 0 && (
                 <div className="mt-4 overflow-x-auto">
@@ -266,7 +249,11 @@ export default function LeadPricingSection({
                         <tr key={item.id} className="border-t border-slate-100">
                           <td className="py-2 pr-4">{hierarchyLabel(item)}</td>
                           <td className="py-2 pr-4">{item.quantity}</td>
-                          <td className="py-2 pr-4">{item.unit_price ?? "—"}</td>
+                          <td className="py-2 pr-4 font-medium text-slate-900">
+                            {item.unit_price != null && item.unit_price !== ""
+                              ? formatCurrency(item.unit_price)
+                              : "—"}
+                          </td>
                           <td className="py-2">{item.remarks || "—"}</td>
                         </tr>
                       ))}

@@ -36,6 +36,8 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change_me_strong_password}"
 DEBUG="${DEBUG:-True}"
 ENABLE_HTTPS="${ENABLE_HTTPS:-false}"
 
+BACKEND_LOCALHOST_ONLY="${BACKEND_LOCALHOST_ONLY:-false}"
+
 APP_HOST="$(detect_app_host)"
 if [[ "$ENABLE_HTTPS" == "true" ]]; then
   FRONTEND_SCHEME="https"
@@ -50,10 +52,20 @@ fi
 
 echo "=============================================="
 echo " Pravartee CRM"
-echo " Backend:  http://127.0.0.1:${BACKEND_PORT} (proxied at /api when HTTPS)"
+if [[ "$ENABLE_HTTPS" == "true" ]]; then
+  echo " Backend:  http://${APP_HOST}:${BACKEND_PORT} (also proxied at /api on HTTPS frontend)"
+else
+  echo " Backend:  http://${APP_HOST}:${BACKEND_PORT}"
+fi
 echo " Frontend: ${FRONTEND_URL}"
 if [[ "$ENABLE_HTTPS" == "true" ]]; then
   echo " GPS:      enabled (HTTPS — accept the self-signed cert on each device)"
+  echo ""
+  echo " On phones/tablets use: ${FRONTEND_URL}"
+  echo " (not localhost — that only works on this machine)"
+  echo ""
+  echo " Certificate warning: tap Advanced → Proceed / Continue anyway."
+  echo " Chrome desktop shortcut: on the error page, type thisisunsafe"
 else
   echo " GPS:      localhost only — use ./start-https.sh for LAN devices"
 fi
@@ -101,10 +113,20 @@ if [[ "$SECRET_KEY" == "change-me-generate-a-random-secret-key" || -z "$SECRET_K
 fi
 
 CORS_ORIGINS="http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT},http://${APP_HOST}:${FRONTEND_PORT}"
+CSRF_ORIGINS="http://localhost:${BACKEND_PORT},http://127.0.0.1:${BACKEND_PORT},http://${APP_HOST}:${BACKEND_PORT}"
+CSRF_ORIGINS="${CSRF_ORIGINS},http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT},http://${APP_HOST}:${FRONTEND_PORT}"
 if [[ "$ENABLE_HTTPS" == "true" ]]; then
   CORS_ORIGINS="${CORS_ORIGINS},https://localhost:${FRONTEND_PORT},https://127.0.0.1:${FRONTEND_PORT},https://${APP_HOST}:${FRONTEND_PORT}"
+  CSRF_ORIGINS="${CSRF_ORIGINS},https://localhost:${FRONTEND_PORT},https://127.0.0.1:${FRONTEND_PORT},https://${APP_HOST}:${FRONTEND_PORT}"
 fi
 ALLOWED="localhost,127.0.0.1,${APP_HOST}"
+PUBLIC_CRM_HOST="${PUBLIC_CRM_HOST:-}"
+if [[ -n "$PUBLIC_CRM_HOST" ]]; then
+  ALLOWED="${ALLOWED},${PUBLIC_CRM_HOST}"
+  CSRF_ORIGINS="${CSRF_ORIGINS},https://${PUBLIC_CRM_HOST}"
+  CORS_ORIGINS="${CORS_ORIGINS},https://${PUBLIC_CRM_HOST}"
+  FRONTEND_URL="https://${PUBLIC_CRM_HOST}"
+fi
 
 set_env_value backend/.env DJANGO_SETTINGS_MODULE "config.settings.development"
 set_env_value backend/.env SECRET_KEY "$SECRET_KEY"
@@ -117,6 +139,8 @@ set_env_value backend/.env DB_HOST "localhost"
 set_env_value backend/.env DB_PORT "$POSTGRES_PORT"
 set_env_value backend/.env CORS_ALLOWED_ORIGINS "$CORS_ORIGINS"
 set_env_value backend/.env CORS_ALLOW_ALL_ORIGINS "True"
+set_env_value backend/.env CSRF_TRUSTED_ORIGINS "$CSRF_ORIGINS"
+set_env_value backend/.env FRONTEND_PUBLIC_URL "$FRONTEND_URL"
 
 # --- Frontend .env.local ---
 cat > frontend/.env.local <<EOF
@@ -143,9 +167,9 @@ if [[ -f "$RUN_DIR/backend.pid" ]]; then
   rm -f "$RUN_DIR/backend.pid"
 fi
 
-# --- Start backend (localhost only when HTTPS — API reached via Next.js proxy) ---
+# --- Start backend ---
 BACKEND_BIND="${BACKEND_HOST}"
-if [[ "$ENABLE_HTTPS" == "true" ]]; then
+if [[ "$ENABLE_HTTPS" == "true" && "$BACKEND_LOCALHOST_ONLY" == "true" ]]; then
   BACKEND_BIND="127.0.0.1"
 fi
 echo "Starting backend on ${BACKEND_BIND}:${BACKEND_PORT}..."

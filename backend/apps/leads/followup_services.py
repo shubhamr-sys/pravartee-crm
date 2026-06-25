@@ -2,12 +2,25 @@
 Follow-up metrics and lead date synchronization.
 """
 from django.contrib.auth import get_user_model
+from django.db.models import Case, IntegerField, When
 from django.utils import timezone
 
 from apps.accounts.access import followups_for_user, leads_for_user
 from apps.leads.models import FollowUp, FollowUpStatus, Lead
 
 User = get_user_model()
+
+
+def order_followups_for_display(queryset):
+    """Pending first (by date), then completed/cancelled (by date)."""
+    return queryset.annotate(
+        status_rank=Case(
+            When(status=FollowUpStatus.PENDING, then=0),
+            When(status=FollowUpStatus.COMPLETED, then=1),
+            default=2,
+            output_field=IntegerField(),
+        )
+    ).order_by("status_rank", "followup_date", "-created_at")
 
 
 def sync_lead_next_followup_date(lead: Lead) -> None:

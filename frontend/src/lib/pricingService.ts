@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { resolveApiBaseUrl } from "@/lib/api";
+import { api, resolveApiBaseUrl } from "@/lib/api";
 import type {
   ManualPricingLineInput,
   PricingMetrics,
@@ -15,27 +15,32 @@ publicApi.interceptors.request.use((config) => {
   return config;
 });
 
-export async function fetchLeadPricingRequests(leadId: string): Promise<PricingRequest[]> {
-  const { api } = await import("@/lib/api");
-  const { data } = await api.get<PricingRequest[]>(`/api/v1/pricing/leads/${leadId}/`);
+export async function fetchLeadPricingRequests(
+  leadId: string,
+): Promise<PricingRequest[]> {
+  const { data } = await api.get<PricingRequest[]>(
+    `/api/v1/pricing/leads/${leadId}/`,
+  );
   return data;
 }
 
 export async function createPricingRequest(leadId: string): Promise<PricingRequest> {
-  const { api } = await import("@/lib/api");
-  const { data } = await api.post<PricingRequest>(`/api/v1/pricing/leads/${leadId}/`);
+  const { data } = await api.post<PricingRequest>(
+    `/api/v1/pricing/leads/${leadId}/`,
+  );
   return data;
 }
 
 export async function fetchPricingMetrics(): Promise<PricingMetrics> {
-  const { api } = await import("@/lib/api");
   const { data } = await api.get<PricingMetrics>("/api/v1/pricing/metrics/");
   return data;
 }
 
-export async function fetchPublicPricingRequest(token: string): Promise<PublicPricingRequest> {
+export async function fetchPublicPricingRequest(
+  token: string,
+): Promise<PublicPricingRequest> {
   const { data } = await publicApi.get<PublicPricingRequest>(
-    `/api/v1/pricing/public/${token}/`,
+    `/api/v1/pricing/public/${encodeURIComponent(token)}/`,
   );
   return data;
 }
@@ -48,7 +53,7 @@ export async function submitPublicPricing(
     line_items?: ManualPricingLineInput[];
   },
 ): Promise<PublicPricingRequest> {
-  const url = `/api/v1/pricing/public/${token}/submit/`;
+  const url = `/api/v1/pricing/public/${encodeURIComponent(token)}/submit/`;
 
   if (payload.vendor_quote_pdf) {
     const formData = new FormData();
@@ -65,7 +70,11 @@ export async function submitPublicPricing(
 
   const { data } = await publicApi.post<PublicPricingRequest>(url, {
     response_remarks: payload.response_remarks ?? "",
-    line_items: payload.line_items ?? [],
+    line_items: (payload.line_items ?? []).map((row) => ({
+      lead_item_id: row.lead_item_id,
+      unit_price: row.unit_price,
+      remarks: row.remarks,
+    })),
   });
   return data;
 }

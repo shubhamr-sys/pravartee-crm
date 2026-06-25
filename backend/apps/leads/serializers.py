@@ -12,6 +12,7 @@ from .lead_item_services import replace_lead_items, sync_lead_from_items
 from .models import Brand, Lead, LeadDocument, LeadItem, LeadStage, Product, ProductCategory, ProductModel
 
 DUE_SOON_DAYS = 3
+GUT_FEELING_VALUES = list(range(10, 101, 10))
 
 from .phone_validation import validate_and_normalize_indian_mobile
 GPS_QUANTIZE = Decimal("0.000001")
@@ -71,7 +72,7 @@ class LeadItemSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
 
     def get_brand_name(self, obj):
         return obj.brand.name if obj.brand_id else ""
@@ -148,7 +149,7 @@ class LeadSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     followup_status = serializers.SerializerMethodField()
-    latest_price_pdf_url = serializers.SerializerMethodField()
+    has_pricing_response = serializers.SerializerMethodField()
     has_pending_pricing_request = serializers.SerializerMethodField()
     location_url = serializers.SerializerMethodField()
     items = LeadItemSerializer(many=True, required=False)
@@ -177,8 +178,9 @@ class LeadSerializer(serializers.ModelSerializer):
             "category_name",
             "stage",
             "stage_name",
+            "gut_feeling_percent",
             "is_active",
-            "latest_price_pdf_url",
+            "has_pricing_response",
             "has_pending_pricing_request",
             "items",
             "documents",
@@ -202,31 +204,14 @@ class LeadSerializer(serializers.ModelSerializer):
             return "due_soon"
         return "normal"
 
-    def get_latest_price_pdf_url(self, obj):
-        responded_requests = getattr(obj, "responded_pricing_requests", None)
-        if responded_requests is not None:
-            pricing_request = responded_requests[0] if responded_requests else None
-        else:
-            from apps.pricing.models import PricingRequestStatus
+    def get_has_pricing_response(self, obj):
+        from apps.pricing.models import PricingRequestStatus, PricingResponseLineItem
 
-            pricing_request = (
-                obj.pricing_requests.filter(status=PricingRequestStatus.RESPONDED)
-                .order_by("-responded_at")
-                .first()
-            )
-        if not pricing_request:
-            return None
-
-        file_field = (
-            pricing_request.generated_quotation_pdf or pricing_request.vendor_quote_pdf
-        )
-        if not file_field:
-            return None
-
-        request = self.context.get("request")
-        if request:
-            return request.build_absolute_uri(file_field.url)
-        return file_field.url
+        return PricingResponseLineItem.objects.filter(
+            pricing_request__lead=obj,
+            pricing_request__status=PricingRequestStatus.RESPONDED,
+            unit_price__isnull=False,
+        ).exists()
 
     def get_has_pending_pricing_request(self, obj):
         pending_requests = getattr(obj, "pending_pricing_requests", None)
@@ -297,6 +282,15 @@ class LeadSerializer(serializers.ModelSerializer):
             return validate_and_normalize_indian_mobile(value)
         except ValueError as exc:
             raise serializers.ValidationError(str(exc)) from exc
+
+    def validate_gut_feeling_percent(self, value):
+        if value is None:
+            return value
+        if value not in GUT_FEELING_VALUES:
+            raise serializers.ValidationError(
+                "Gut feeling must be 10%–100% in steps of 10%.",
+            )
+        return value
 
     def validate_assigned_to(self, value):
         if value is None:

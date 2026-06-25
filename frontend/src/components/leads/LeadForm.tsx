@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { isAxiosError } from "axios";
 
 import LocationDisplay from "@/components/attendance/LocationDisplay";
@@ -11,6 +11,7 @@ import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
 import { useToast } from "@/context/ToastContext";
 import { GeolocationError, getCurrentPosition } from "@/lib/geolocation";
 import { getValidationToastMessage, parseApiFieldErrors } from "@/lib/formErrors";
+import { GUT_FEELING_PERCENT_OPTIONS } from "@/lib/gutFeelingOptions";
 import { validateIndianMobile } from "@/lib/phoneValidation";
 import {
   getRecordTypeLabel,
@@ -54,6 +55,15 @@ function formatGpsCoordinate(value: number): string {
   return value.toFixed(6);
 }
 
+function gutFeelingSelectValue(value: LeadFormData["gut_feeling_percent"]): string {
+  if (value === "" || value == null) return "";
+  return String(value);
+}
+
+function selectIdValue(value: string | undefined | null): string {
+  return value ? String(value) : "";
+}
+
 export default function LeadForm({
   mode,
   initialValues,
@@ -73,6 +83,10 @@ export default function LeadForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValues(initialValues);
+  }, [initialValues]);
 
   function updateField<K extends keyof LeadFormData>(key: K, value: LeadFormData[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -382,12 +396,12 @@ export default function LeadForm({
           <label className="mb-1 block text-sm font-medium">Stage *</label>
           <select
             className={fieldClass(Boolean(fieldErrors.stage))}
-            value={values.stage}
+            value={selectIdValue(values.stage)}
             onChange={(e) => updateField("stage", e.target.value)}
           >
             <option value="">Select stage</option>
             {stages.map((item) => (
-              <option key={item.id} value={item.id}>
+              <option key={item.id} value={String(item.id)}>
                 {item.name}
               </option>
             ))}
@@ -396,13 +410,24 @@ export default function LeadForm({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Next Follow-up</label>
-          <input
-            type="date"
+          <label className="mb-1 block text-sm font-medium">Gut Feeling</label>
+          <select
             className={inputClass}
-            value={values.next_followup_date}
-            onChange={(e) => updateField("next_followup_date", e.target.value)}
-          />
+            value={gutFeelingSelectValue(values.gut_feeling_percent)}
+            onChange={(e) =>
+              updateField(
+                "gut_feeling_percent",
+                e.target.value ? Number(e.target.value) : "",
+              )
+            }
+          >
+            <option value="">Not set</option>
+            {GUT_FEELING_PERCENT_OPTIONS.map((percent) => (
+              <option key={percent} value={String(percent)}>
+                {percent}%
+              </option>
+            ))}
+          </select>
         </div>
 
         {canAssign && (
@@ -410,12 +435,12 @@ export default function LeadForm({
             <label className="mb-1 block text-sm font-medium">Assigned To</label>
             <select
               className={inputClass}
-              value={values.assigned_to || ""}
+              value={selectIdValue(values.assigned_to)}
               onChange={(e) => updateField("assigned_to", e.target.value)}
             >
               <option value="">Unassigned</option>
               {assignableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
+                <option key={user.id} value={String(user.id)}>
                   {user.first_name} {user.last_name} ({user.username})
                 </option>
               ))}

@@ -19,6 +19,8 @@ export type LeadRecordType = "LEAD" | "VISIT";
 
 export type FollowupStatus = "none" | "overdue" | "due_soon" | "normal";
 
+export type { GutFeelingPercent } from "@/lib/gutFeelingOptions";
+
 export interface LeadListSummary {
   total_leads: number;
   pipeline_leads: number;
@@ -76,8 +78,9 @@ export interface Lead {
   category_name: string;
   stage: string;
   stage_name: string;
+  gut_feeling_percent?: number | null;
   is_active: boolean;
-  latest_price_pdf_url?: string | null;
+  has_pricing_response?: boolean;
   has_pending_pricing_request?: boolean;
   items?: LeadItem[];
   documents?: LeadDocument[];
@@ -114,6 +117,10 @@ export interface LeadItemFormData {
   uom: string;
   specification: string;
   remarks: string;
+  /** Display labels when editing existing line items (not sent to API). */
+  product_name?: string;
+  brand_name?: string;
+  model_name?: string;
 }
 
 export interface LeadFormData {
@@ -127,7 +134,7 @@ export interface LeadFormData {
   longitude: string;
   category: string;
   stage: string;
-  next_followup_date?: string;
+  gut_feeling_percent?: number | "" | null;
   notes: string;
   assigned_to?: string;
   record_type?: LeadRecordType;
@@ -155,14 +162,17 @@ export function emptyLeadItem(categoryId = ""): LeadItemFormData {
 export function leadItemToFormData(item: LeadItem): LeadItemFormData {
   return {
     id: item.id,
-    category: item.category,
-    product: item.product,
-    brand: item.brand || "",
-    model: item.model || "",
+    category: String(item.category),
+    product: String(item.product),
+    brand: item.brand ? String(item.brand) : "",
+    model: item.model ? String(item.model) : "",
     quantity: String(item.quantity),
     uom: item.uom || "NOS",
-    specification: item.specification,
-    remarks: item.remarks || "",
+    specification: item.specification ?? "",
+    remarks: item.remarks ?? "",
+    product_name: item.product_name,
+    brand_name: item.brand_name || undefined,
+    model_name: item.model_name || undefined,
   };
 }
 
@@ -172,6 +182,7 @@ export type AssignableUser = Pick<
 >;
 
 export interface LeadItemPayload {
+  id?: string;
   category: string;
   product: string;
   brand: string | null;
@@ -185,14 +196,20 @@ export interface LeadItemPayload {
 export function buildItemsPayload(items: LeadItemFormData[]): LeadItemPayload[] {
   return items
     .filter((item) => item.category && item.product)
-    .map((item) => ({
-      category: item.category,
-      product: item.product,
-      brand: item.brand || null,
-      model: item.model || null,
-      quantity: Number(item.quantity),
-      uom: item.uom || "NOS",
-      specification: item.specification.trim(),
-      remarks: item.remarks.trim(),
-    }));
+    .map((item) => {
+      const payload: LeadItemPayload = {
+        category: item.category,
+        product: item.product,
+        brand: item.brand || null,
+        model: item.model || null,
+        quantity: Number(item.quantity),
+        uom: item.uom || "NOS",
+        specification: item.specification.trim(),
+        remarks: item.remarks.trim(),
+      };
+      if (item.id) {
+        payload.id = item.id;
+      }
+      return payload;
+    });
 }

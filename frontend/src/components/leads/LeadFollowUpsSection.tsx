@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import FollowUpCompleteModal from "@/components/leads/FollowUpCompleteModal";
 import FollowUpModal from "@/components/leads/FollowUpModal";
 import { LoadingState } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
@@ -10,10 +11,9 @@ import {
   completeFollowUp,
   createFollowUp,
   fetchLeadFollowUps,
-  updateFollowUp,
 } from "@/lib/followupService";
 import { fetchAssignableUsers } from "@/lib/leadsService";
-import type { FollowUp } from "@/types/followup";
+import type { FollowUp, FollowUpCompleteData } from "@/types/followup";
 import type { AssignableUser } from "@/types/lead";
 
 interface LeadFollowUpsSectionProps {
@@ -39,7 +39,8 @@ export default function LeadFollowUpsSection({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<FollowUp | null>(null);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [completing, setCompleting] = useState<FollowUp | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -77,11 +78,7 @@ export default function LeadFollowUpsSection({
   async function handleSave(values: Parameters<typeof createFollowUp>[1]) {
     setIsSubmitting(true);
     try {
-      if (editing) {
-        await updateFollowUp(leadId, editing.id, values);
-      } else {
-        await createFollowUp(leadId, values);
-      }
+      await createFollowUp(leadId, values);
       await loadData();
       onUpdated?.();
     } finally {
@@ -89,16 +86,19 @@ export default function LeadFollowUpsSection({
     }
   }
 
-  async function handleComplete(followup: FollowUp) {
+  async function handleComplete(values: FollowUpCompleteData) {
+    if (!completing) return;
     setIsSubmitting(true);
     try {
-      await completeFollowUp(leadId, followup.id);
+      await completeFollowUp(leadId, completing.id, values);
       await loadData();
       onUpdated?.();
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  const hasPending = followups.some((followup) => followup.status === "PENDING");
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -106,10 +106,7 @@ export default function LeadFollowUpsSection({
         <h2 className="text-lg font-semibold text-slate-900">Follow-ups</h2>
         <button
           type="button"
-          onClick={() => {
-            setEditing(null);
-            setModalOpen(true);
-          }}
+          onClick={() => setModalOpen(true)}
           className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
         >
           Add Follow-up
@@ -132,7 +129,10 @@ export default function LeadFollowUpsSection({
                 <th className="px-3 py-2 font-medium">Assigned To</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Remarks</th>
-                <th className="px-3 py-2 text-right font-medium">Actions</th>
+                <th className="px-3 py-2 font-medium">Action Taken</th>
+                {hasPending && (
+                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -149,30 +149,28 @@ export default function LeadFollowUpsSection({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{followup.remarks || "—"}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-2">
-                      {followup.status === "PENDING" && (
+                  <td className="px-3 py-2 text-slate-600">
+                    {followup.action_taken || "—"}
+                  </td>
+                  {hasPending && (
+                    <td className="px-3 py-2 text-right">
+                      {followup.status === "PENDING" ? (
                         <button
                           type="button"
                           disabled={isSubmitting}
-                          onClick={() => void handleComplete(followup)}
+                          onClick={() => {
+                            setCompleting(followup);
+                            setCompleteModalOpen(true);
+                          }}
                           className="rounded-lg border border-green-600 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-50"
                         >
                           Complete
                         </button>
+                      ) : (
+                        <span className="text-slate-400">—</span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(followup);
-                          setModalOpen(true);
-                        }}
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -184,13 +182,20 @@ export default function LeadFollowUpsSection({
         isOpen={modalOpen}
         isSubmitting={isSubmitting}
         users={users}
-        initial={editing}
         defaultAssignedTo={defaultAssignedTo}
-        onClose={() => {
-          setModalOpen(false);
-          setEditing(null);
-        }}
+        onClose={() => setModalOpen(false)}
         onSubmit={handleSave}
+      />
+
+      <FollowUpCompleteModal
+        isOpen={completeModalOpen}
+        followup={completing}
+        isSubmitting={isSubmitting}
+        onClose={() => {
+          setCompleteModalOpen(false);
+          setCompleting(null);
+        }}
+        onSubmit={handleComplete}
       />
     </section>
   );

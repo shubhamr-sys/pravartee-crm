@@ -84,6 +84,12 @@ def log_stage_change(
     )
 
 
+def _format_gut_feeling(percent) -> str:
+    if percent is None:
+        return "None"
+    return f"{percent}%"
+
+
 def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
     """Record activities for meaningful field changes on an existing lead."""
     changed = False
@@ -127,6 +133,17 @@ def log_lead_updated(lead: Lead, user: User | None, previous: Lead) -> None:
         )
         changed = True
 
+    if previous.gut_feeling_percent != lead.gut_feeling_percent:
+        log_lead_activity(
+            lead,
+            user,
+            ActivityType.GUT_FEELING_UPDATED,
+            old_value=_format_gut_feeling(previous.gut_feeling_percent),
+            new_value=_format_gut_feeling(lead.gut_feeling_percent),
+            comments="Gut feeling updated.",
+        )
+        changed = True
+
     if previous.notes != lead.notes:
         log_lead_activity(
             lead,
@@ -153,4 +170,67 @@ def log_price_requested(lead: Lead, user: User | None) -> LeadActivity:
         user,
         ActivityType.PRICE_REQUESTED,
         comments="Asked for price.",
+    )
+
+
+def _followup_assignee_name(followup) -> str:
+    assignee = followup.assigned_to
+    return assignee.get_full_name() or assignee.username
+
+
+def _format_followup_date(value) -> str:
+    if not value:
+        return "None"
+    return value.isoformat()
+
+
+def log_followup_scheduled(
+    followup,
+    user: User | None,
+    previous_next_date=None,
+) -> LeadActivity:
+    lead = followup.lead
+    remarks = f" Remarks: {followup.remarks}" if followup.remarks else ""
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_SCHEDULED,
+        old_value=_format_followup_date(previous_next_date),
+        new_value=_format_followup_date(lead.next_followup_date),
+        comments=(
+            f"Follow-up scheduled: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Assigned to {_followup_assignee_name(followup)}."
+            f"{remarks}"
+        ),
+    )
+
+
+def log_followup_modified(followup, user: User | None) -> LeadActivity:
+    lead = followup.lead
+    remarks = f" Remarks: {followup.remarks}" if followup.remarks else ""
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_UPDATED,
+        new_value=followup.followup_date.isoformat(),
+        comments=(
+            f"Follow-up updated: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Assigned to {_followup_assignee_name(followup)}."
+            f"{remarks}"
+        ),
+    )
+
+
+def log_followup_completed(followup, user: User | None) -> LeadActivity:
+    lead = followup.lead
+    return log_lead_activity(
+        lead,
+        user,
+        ActivityType.FOLLOWUP_COMPLETED,
+        new_value=followup.followup_date.isoformat(),
+        comments=(
+            f"Follow-up completed: {followup.get_followup_type_display()} on "
+            f"{followup.followup_date}. Action: {followup.action_taken}"
+            f"{f' Remarks: {followup.remarks}' if followup.remarks else ''}"
+        ),
     )

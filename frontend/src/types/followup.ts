@@ -16,6 +16,7 @@ export interface FollowUp {
   followup_type: FollowUpType;
   followup_type_display: string;
   remarks: string;
+  action_taken: string;
   status: FollowUpStatus;
   status_display: string;
   completed_at: string | null;
@@ -30,6 +31,11 @@ export interface FollowUpFormData {
   followup_date: string;
   followup_type: FollowUpType;
   remarks: string;
+}
+
+export interface FollowUpCompleteData {
+  remarks: string;
+  action_taken: string;
 }
 
 export interface StageHistoryEntry {
