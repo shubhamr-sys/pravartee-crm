@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import CategorySelectField from "@/components/leads/CategorySelectField";
 import MasterAddModal from "@/components/leads/MasterAddModal";
@@ -60,38 +60,9 @@ export default function LeadItemsEditor({
   const [selectedLabels, setSelectedLabels] = useState<
     Record<number, { product?: string; brand?: string; model?: string }>
   >({});
-
-  const loadMastersForRow = useCallback(
-    async (index: number, item: LeadItemFormData) => {
-      const products = item.category
-        ? await fetchMasterProducts(item.category)
-        : [];
-      const brands = item.product ? await fetchMasterBrands(item.product) : [];
-      const models = item.brand ? await fetchMasterModels(item.brand) : [];
-      setRowMasters((current) => ({
-        ...current,
-        [index]: { products, brands, models },
-      }));
-      setSelectedLabels((current) => ({
-        ...current,
-        [index]: {
-          product:
-            item.product_name ||
-            products.find((row) => row.id === item.product)?.name ||
-            current[index]?.product,
-          brand:
-            item.brand_name ||
-            brands.find((row) => row.id === item.brand)?.name ||
-            current[index]?.brand,
-          model:
-            item.model_name ||
-            models.find((row) => row.id === item.model)?.name ||
-            current[index]?.model,
-        },
-      }));
-    },
-    [],
-  );
+  const [loadingMasters, setLoadingMasters] = useState<Record<string, boolean>>({});
+  const mastersLoadedRef = useRef<Set<string>>(new Set());
+  const inFlightRef = useRef<Set<string>>(new Set());
 
   const itemsMastersKey = items
     .map(
@@ -101,10 +72,161 @@ export default function LeadItemsEditor({
     .join(";");
 
   useEffect(() => {
-    items.forEach((item, index) => {
-      void loadMastersForRow(index, item);
+    setSelectedLabels((current) => {
+      const next = { ...current };
+      items.forEach((item, index) => {
+        next[index] = {
+          product: item.product_name || current[index]?.product,
+          brand: item.brand_name || current[index]?.brand,
+          model: item.model_name || current[index]?.model,
+        };
+      });
+      return next;
     });
-  }, [itemsMastersKey, loadMastersForRow, items]);
+  }, [itemsMastersKey, items]);
+
+  function setMasterLoading(key: string, loading: boolean) {
+    setLoadingMasters((current) => {
+      if (loading) return { ...current, [key]: true };
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function clearRowMasterCache(
+    index: number,
+    types: Array<"products" | "brands" | "models"> = ["products", "brands", "models"],
+  ) {
+    for (const key of [...mastersLoadedRef.current]) {
+      if (types.some((type) => key.startsWith(`${index}:${type}:`))) {
+        mastersLoadedRef.current.delete(key);
+      }
+    }
+  }
+
+  const ensureProductsLoaded = useCallback(
+    async (index: number) => {
+      const item = items[index];
+      if (!item?.category) return;
+
+      const cacheKey = `${index}:products:${item.category}`;
+      if (mastersLoadedRef.current.has(cacheKey) || inFlightRef.current.has(cacheKey)) {
+        return;
+      }
+
+      inFlightRef.current.add(cacheKey);
+      setMasterLoading(`${index}-products`, true);
+      try {
+        const products = await fetchMasterProducts(item.category);
+        mastersLoadedRef.current.add(cacheKey);
+        setRowMasters((current) => ({
+          ...current,
+          [index]: {
+            products,
+            brands: current[index]?.brands ?? [],
+            models: current[index]?.models ?? [],
+          },
+        }));
+        setSelectedLabels((current) => ({
+          ...current,
+          [index]: {
+            ...current[index],
+            product:
+              item.product_name ||
+              products.find((row) => row.id === item.product)?.name ||
+              current[index]?.product,
+          },
+        }));
+      } finally {
+        inFlightRef.current.delete(cacheKey);
+        setMasterLoading(`${index}-products`, false);
+      }
+    },
+    [items],
+  );
+
+  const ensureBrandsLoaded = useCallback(
+    async (index: number) => {
+      const item = items[index];
+      if (!item?.product) return;
+
+      const cacheKey = `${index}:brands:${item.product}`;
+      if (mastersLoadedRef.current.has(cacheKey) || inFlightRef.current.has(cacheKey)) {
+        return;
+      }
+
+      inFlightRef.current.add(cacheKey);
+      setMasterLoading(`${index}-brands`, true);
+      try {
+        const brands = await fetchMasterBrands(item.product);
+        mastersLoadedRef.current.add(cacheKey);
+        setRowMasters((current) => ({
+          ...current,
+          [index]: {
+            products: current[index]?.products ?? [],
+            brands,
+            models: current[index]?.models ?? [],
+          },
+        }));
+        setSelectedLabels((current) => ({
+          ...current,
+          [index]: {
+            ...current[index],
+            brand:
+              item.brand_name ||
+              brands.find((row) => row.id === item.brand)?.name ||
+              current[index]?.brand,
+          },
+        }));
+      } finally {
+        inFlightRef.current.delete(cacheKey);
+        setMasterLoading(`${index}-brands`, false);
+      }
+    },
+    [items],
+  );
+
+  const ensureModelsLoaded = useCallback(
+    async (index: number) => {
+      const item = items[index];
+      if (!item?.brand) return;
+
+      const cacheKey = `${index}:models:${item.brand}`;
+      if (mastersLoadedRef.current.has(cacheKey) || inFlightRef.current.has(cacheKey)) {
+        return;
+      }
+
+      inFlightRef.current.add(cacheKey);
+      setMasterLoading(`${index}-models`, true);
+      try {
+        const models = await fetchMasterModels(item.brand);
+        mastersLoadedRef.current.add(cacheKey);
+        setRowMasters((current) => ({
+          ...current,
+          [index]: {
+            products: current[index]?.products ?? [],
+            brands: current[index]?.brands ?? [],
+            models,
+          },
+        }));
+        setSelectedLabels((current) => ({
+          ...current,
+          [index]: {
+            ...current[index],
+            model:
+              item.model_name ||
+              models.find((row) => row.id === item.model)?.name ||
+              current[index]?.model,
+          },
+        }));
+      } finally {
+        inFlightRef.current.delete(cacheKey);
+        setMasterLoading(`${index}-models`, false);
+      }
+    },
+    [items],
+  );
 
   function updateItem(index: number, patch: Partial<LeadItemFormData>) {
     const next = items.map((item, i) => {
@@ -126,19 +248,42 @@ export default function LeadItemsEditor({
     });
 
     if (patch.category !== undefined && patch.category !== items[index]?.category) {
+      clearRowMasterCache(index);
       setSelectedLabels((current) => ({
         ...current,
         [index]: {},
       }));
+      setRowMasters((current) => ({
+        ...current,
+        [index]: { products: [], brands: [], models: [] },
+      }));
     } else if (patch.product !== undefined && patch.product !== items[index]?.product) {
+      clearRowMasterCache(index, ["brands", "models"]);
       setSelectedLabels((current) => ({
         ...current,
         [index]: { ...current[index], brand: "", model: "" },
       }));
+      setRowMasters((current) => ({
+        ...current,
+        [index]: {
+          products: current[index]?.products ?? [],
+          brands: [],
+          models: [],
+        },
+      }));
     } else if (patch.brand !== undefined && patch.brand !== items[index]?.brand) {
+      clearRowMasterCache(index, ["models"]);
       setSelectedLabels((current) => ({
         ...current,
         [index]: { ...current[index], model: "" },
+      }));
+      setRowMasters((current) => ({
+        ...current,
+        [index]: {
+          products: current[index]?.products ?? [],
+          brands: current[index]?.brands ?? [],
+          models: [],
+        },
       }));
     }
 
@@ -275,7 +420,20 @@ export default function LeadItemsEditor({
   }
 
   async function refreshRowMasters() {
-    await Promise.all(items.map((item, index) => loadMastersForRow(index, item)));
+    await Promise.all(
+      items.map(async (item, index) => {
+        if (!item.category) return;
+        const [products, brands, models] = await Promise.all([
+          fetchMasterProducts(item.category),
+          item.product ? fetchMasterBrands(item.product) : Promise.resolve([]),
+          item.brand ? fetchMasterModels(item.brand) : Promise.resolve([]),
+        ]);
+        setRowMasters((current) => ({
+          ...current,
+          [index]: { products, brands, models },
+        }));
+      }),
+    );
   }
 
   function handleBulkUploaded(lineItems: ImportedProductLineItem[]) {
@@ -446,6 +604,8 @@ export default function LeadItemsEditor({
                   label="Product"
                   value={item.product ? String(item.product) : ""}
                   valueLabel={selectedLabels[index]?.product}
+                  onOpen={() => void ensureProductsLoaded(index)}
+                  isLoading={Boolean(loadingMasters[`${index}-products`])}
                   onChange={(product) => {
                     const label = masters.products.find((row) => row.id === product)?.name;
                     setSelectedLabels((current) => ({
@@ -476,6 +636,8 @@ export default function LeadItemsEditor({
                   label="Brand"
                   value={item.brand ? String(item.brand) : ""}
                   valueLabel={selectedLabels[index]?.brand}
+                  onOpen={() => void ensureBrandsLoaded(index)}
+                  isLoading={Boolean(loadingMasters[`${index}-brands`])}
                   onChange={(brand) => {
                     const label = masters.brands.find((row) => row.id === brand)?.name;
                     setSelectedLabels((current) => ({
@@ -505,6 +667,8 @@ export default function LeadItemsEditor({
                   label="Model"
                   value={item.model ? String(item.model) : ""}
                   valueLabel={selectedLabels[index]?.model}
+                  onOpen={() => void ensureModelsLoaded(index)}
+                  isLoading={Boolean(loadingMasters[`${index}-models`])}
                   onChange={(model) => {
                     const label = masters.models.find((row) => row.id === model)?.name;
                     setSelectedLabels((current) => ({

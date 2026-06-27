@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import { normalizeIndianMobile } from "@/lib/phoneValidation";
+import { createRequestCache } from "@/lib/requestCache";
 import type {
   AssignableUser,
   Lead,
@@ -11,6 +12,10 @@ import type {
   ProductCategory,
 } from "@/types/lead";
 import { buildItemsPayload } from "@/types/lead";
+
+const stagesCache = createRequestCache<LeadStage[]>();
+const categoriesCache = createRequestCache<ProductCategory[]>();
+const assignableUsersCache = createRequestCache<AssignableUser[]>();
 
 export async function fetchLeads(
   params: LeadListParams = {},
@@ -32,22 +37,28 @@ export async function fetchLead(id: string): Promise<Lead> {
 }
 
 export async function fetchStages(): Promise<LeadStage[]> {
-  const { data } = await api.get<PaginatedResponse<LeadStage> | LeadStage[]>(
-    "/api/v1/leads/stages/",
-  );
-  return Array.isArray(data) ? data : data.results;
+  return stagesCache.fetch("all", async () => {
+    const { data } = await api.get<PaginatedResponse<LeadStage> | LeadStage[]>(
+      "/api/v1/leads/stages/",
+    );
+    return Array.isArray(data) ? data : data.results;
+  });
 }
 
 export async function fetchCategories(): Promise<ProductCategory[]> {
-  const { data } = await api.get<PaginatedResponse<ProductCategory> | ProductCategory[]>(
-    "/api/v1/leads/categories/",
-  );
-  return Array.isArray(data) ? data : data.results;
+  return categoriesCache.fetch("all", async () => {
+    const { data } = await api.get<PaginatedResponse<ProductCategory> | ProductCategory[]>(
+      "/api/v1/leads/categories/",
+    );
+    return Array.isArray(data) ? data : data.results;
+  });
 }
 
 export async function fetchAssignableUsers(): Promise<AssignableUser[]> {
-  const { data } = await api.get<AssignableUser[]>("/api/v1/auth/users/");
-  return data;
+  return assignableUsersCache.fetch("all", async () => {
+    const { data } = await api.get<AssignableUser[]>("/api/v1/auth/users/");
+    return data;
+  });
 }
 
 export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {

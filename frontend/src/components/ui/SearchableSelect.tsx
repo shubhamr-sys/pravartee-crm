@@ -24,6 +24,9 @@ interface SearchableSelectProps {
   onCreateRequest?: (search: string) => void;
   /** Shown when value is set but not yet present in options (e.g. after inline create). */
   valueLabel?: string;
+  /** Called when the dropdown is opened — use to lazy-load options. */
+  onOpen?: () => void;
+  isLoading?: boolean;
 }
 
 const defaultInputClass =
@@ -45,6 +48,8 @@ export default function SearchableSelect({
   createLabel,
   onCreateRequest,
   valueLabel,
+  onOpen,
+  isLoading = false,
 }: SearchableSelectProps) {
   const autoId = useId();
   const fieldId = id ?? autoId;
@@ -120,6 +125,7 @@ export default function SearchableSelect({
         placeholder={disabled ? emptyLabel : open ? placeholder : selectedLabel || emptyLabel}
         onFocus={() => {
           if (disabled) return;
+          onOpen?.();
           setOpen(true);
           setSearch(selectedLabel);
         }}
@@ -140,10 +146,14 @@ export default function SearchableSelect({
           role="listbox"
           className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
-          {filtered.length === 0 && !showCreate && (
+          {isLoading && (
+            <li className="px-3 py-2 text-sm text-slate-500">Loading...</li>
+          )}
+          {!isLoading && filtered.length === 0 && !showCreate && (
             <li className="px-3 py-2 text-sm text-slate-500">No matches found</li>
           )}
-          {filtered.map((option) => (
+          {!isLoading &&
+            filtered.map((option) => (
             <li key={option.value}>
               <button
                 type="button"
@@ -161,7 +171,7 @@ export default function SearchableSelect({
               </button>
             </li>
           ))}
-          {showCreate && (
+          {!isLoading && showCreate && (
             <li className="border-t border-slate-100">
               <button
                 type="button"

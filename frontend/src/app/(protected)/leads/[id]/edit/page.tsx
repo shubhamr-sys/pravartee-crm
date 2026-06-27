@@ -1,11 +1,11 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { isAxiosError } from "axios";
 
-import LeadForm from "@/components/leads/LeadForm";
 import {
   ErrorState,
   LoadingState,
@@ -27,6 +27,11 @@ import type {
   ProductCategory,
 } from "@/types/lead";
 
+const LeadForm = dynamic(() => import("@/components/leads/LeadForm"), {
+  loading: () => <LoadingState message="Loading form..." />,
+  ssr: false,
+});
+
 export default function EditLeadPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -46,18 +51,23 @@ export default function EditLeadPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [leadData, stageData, categoryData] = await Promise.all([
+      const requests: [
+        Promise<Lead>,
+        Promise<LeadStage[]>,
+        Promise<ProductCategory[]>,
+        Promise<AssignableUser[] | null>,
+      ] = [
         fetchLead(params.id),
         fetchStages(),
         fetchCategories(),
-      ]);
+        canAssign ? fetchAssignableUsers() : Promise.resolve(null),
+      ];
+      const [leadData, stageData, categoryData, users] = await Promise.all(requests);
       setLead(leadData);
       setInitialValues(leadToFormData(leadData));
       setStages(stageData);
       setCategories(categoryData);
-
-      if (canAssign) {
-        const users = await fetchAssignableUsers();
+      if (users) {
         setAssignableUsers(users);
       }
     } catch (err) {

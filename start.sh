@@ -193,7 +193,7 @@ cd frontend
 if [[ ! -d node_modules ]]; then
   npm install
 fi
-NEXT_DEV_ARGS=(-H "${FRONTEND_HOST}" -p "${FRONTEND_PORT}")
+NEXT_DEV_ARGS=(--webpack -H "${FRONTEND_HOST}" -p "${FRONTEND_PORT}")
 if [[ "$ENABLE_HTTPS" == "true" ]]; then
   cert_paths="$(ensure_lan_https_cert "$ROOT" "$APP_HOST")"
   https_key="${cert_paths%%:*}"

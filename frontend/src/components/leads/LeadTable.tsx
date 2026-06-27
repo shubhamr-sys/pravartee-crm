@@ -136,6 +136,7 @@ export default function LeadTable({
                       </button>
                       {canEdit && (
                         <Link
+                          prefetch={false}
                           href={`/leads/${lead.id}/edit`}
                           className="rounded-lg border border-teal-700 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50"
                         >
