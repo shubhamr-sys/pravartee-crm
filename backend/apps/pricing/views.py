@@ -12,17 +12,109 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.access import user_can_access_lead
-from apps.accounts.permissions import IsAuthenticatedCRMUser
+from apps.accounts.permissions import IsAuthenticatedCRMUser, IsCommercial
 from apps.leads.models import Lead
-from apps.pricing.access import pricing_requests_for_user
-from apps.pricing.models import PricingRequest
+from apps.pricing.access import pricing_queue_queryset, pricing_requests_for_user
+from apps.pricing.queue_filters import apply_pricing_queue_filters
+from apps.pricing.models import PricingRequest, PricingRequestStatus
 from apps.pricing.serializers import (
+    PricingQueueSerializer,
     PricingRequestDetailSerializer,
     PricingRequestListSerializer,
     PublicPricingRequestSerializer,
     PublicPricingSubmitSerializer,
 )
 from apps.pricing.services import create_pricing_request, get_pricing_metrics, submit_pricing_response
+
+
+class PricingQueueListView(generics.ListAPIView):
+    """Commercial team dashboard — all pricing requests as cards."""
+
+    permission_classes = [IsAuthenticatedCRMUser, IsCommercial]
+    serializer_class = PricingQueueSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = pricing_queue_queryset()
+        status_filter = self.request.query_params.get("status", "").upper()
+        if status_filter in PricingRequestStatus.values:
+            qs = qs.filter(status=status_filter)
+        try:
+            return apply_pricing_queue_filters(
+                qs,
+                search=self.request.query_params.get("search", ""),
+                assigned_to=self.request.query_params.get("assigned_to", ""),
+                requested_on=self.request.query_params.get("requested_on", ""),
+                order=self.request.query_params.get("order", "-requested_at"),
+            )
+        except ValueError as exc:
+            raise ValidationError({"requested_on": str(exc)}) from exc
+
+
+class PricingQueueOwnersView(APIView):
+    """Distinct sales owners on leads with pricing requests (for filter dropdown)."""
+
+    permission_classes = [IsAuthenticatedCRMUser, IsCommercial]
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        owner_ids = (
+            pricing_queue_queryset()
+            .filter(lead__assigned_to__isnull=False)
+            .values_list("lead__assigned_to_id", flat=True)
+            .distinct()
+        )
+        owners = User.objects.filter(id__in=owner_ids).order_by(
+            "last_name",
+            "first_name",
+            "username",
+        )
+        data = [
+            {
+                "id": str(user.id),
+                "name": user.get_full_name() or user.username,
+            }
+            for user in owners
+        ]
+        return Response(data)
+
+
+class PricingQueueDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticatedCRMUser, IsCommercial]
+    serializer_class = PricingQueueSerializer
+
+    def get_queryset(self):
+        return pricing_queue_queryset()
+
+
+class PricingQueueSubmitView(APIView):
+    permission_classes = [IsAuthenticatedCRMUser, IsCommercial]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request, pk):
+        pricing_request = get_object_or_404(pricing_queue_queryset(), pk=pk)
+        payload = _public_pricing_submit_payload(request)
+        serializer = PublicPricingSubmitSerializer(
+            data=payload,
+            context={"pricing_request": pricing_request},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            updated = submit_pricing_response(
+                pricing_request,
+                line_items_data=data.get("line_items"),
+                response_remarks=data.get("response_remarks", ""),
+                price_validity=data.get("price_validity"),
+            )
+        except ValueError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        return Response(
+            PricingQueueSerializer(updated).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class PricingRequestMetricsView(APIView):
@@ -132,6 +224,7 @@ class PublicPricingSubmitView(APIView):
                 pricing_request,
                 line_items_data=data.get("line_items"),
                 response_remarks=data.get("response_remarks", ""),
+                price_validity=data.get("price_validity"),
             )
         except ValueError as exc:
             raise ValidationError({"detail": str(exc)}) from exc

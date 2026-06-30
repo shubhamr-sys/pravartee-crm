@@ -22,6 +22,7 @@ import {
   logoutUser,
 } from "@/lib/authService";
 import type { User, UserRole } from "@/types/user";
+import { defaultHomeForRole } from "@/lib/roleAccess";
 
 interface AuthContextValue {
   user: User | null;
@@ -32,6 +33,7 @@ interface AuthContextValue {
   isCEO: boolean;
   isSalesHead: boolean;
   isSalesperson: boolean;
+  isCommercial: boolean;
   canCreateMaster: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -108,7 +110,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
     window.location.replace(
-      next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard",
+      next && next.startsWith("/") && !next.startsWith("//")
+        ? next
+        : defaultHomeForRole(response.user.role),
     );
   }, []);
 
@@ -128,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isCEO: user?.role === "CEO",
       isSalesHead: user?.role === "SALES_HEAD",
       isSalesperson: user?.role === "SALESPERSON",
+      isCommercial: user?.role === "COMMERCIAL",
       canCreateMaster:
         user?.role === "CEO" ||
         user?.role === "SALES_HEAD" ||

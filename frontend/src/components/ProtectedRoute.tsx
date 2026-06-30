@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/context/AuthContext";
+import { defaultHomeForRole, isPathAllowedForRole } from "@/lib/roleAccess";
 
 function SessionLoading() {
   return (
@@ -19,7 +20,7 @@ export default function ProtectedRoute({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { sessionReady, isLoading, user } = useAuth();
+  const { sessionReady, isLoading, user, role } = useAuth();
 
   useEffect(() => {
     if (!sessionReady || isLoading) return;
@@ -27,8 +28,13 @@ export default function ProtectedRoute({
     if (!user) {
       const next = encodeURIComponent(pathname);
       window.location.replace(`/login?next=${next}`);
+      return;
     }
-  }, [sessionReady, isLoading, user, pathname]);
+
+    if (!isPathAllowedForRole(pathname, role)) {
+      window.location.replace(defaultHomeForRole(role));
+    }
+  }, [sessionReady, isLoading, user, role, pathname]);
 
   if (!sessionReady || isLoading || !user) {
     return <SessionLoading />;

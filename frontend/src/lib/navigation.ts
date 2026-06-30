@@ -1,4 +1,5 @@
 import type { UserRole } from "@/types/user";
+import { isCommercialRole } from "@/lib/roleAccess";
 
 export interface NavItem {
   href: string;
@@ -9,6 +10,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   CEO: "CEO",
   SALES_HEAD: "Sales Head",
   SALESPERSON: "Salesperson",
+  COMMERCIAL: "Commercial",
 };
 
 export function getRoleLabel(role: UserRole): string {
@@ -16,6 +18,10 @@ export function getRoleLabel(role: UserRole): string {
 }
 
 export function getNavItemsForRole(role: UserRole): NavItem[] {
+  if (isCommercialRole(role)) {
+    return [{ href: "/pricing", label: "Pricing queue" }];
+  }
+
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/leads", label: "Leads" },

@@ -118,6 +118,7 @@ class PricingRequestListSerializer(serializers.ModelSerializer):
             "responded_at",
             "submission_mode",
             "response_remarks",
+            "price_validity",
             "vendor_quote_url",
             "generated_quotation_url",
             "line_items",
@@ -205,13 +206,96 @@ class PublicPricingRequestSerializer(serializers.ModelSerializer):
             "stage_name",
             "requested_at",
             "responded_at",
+            "price_validity",
             "line_items",
         ]
         read_only_fields = fields
 
 
+class PricingQueueSerializer(serializers.ModelSerializer):
+    """Pricing request card for the commercial team dashboard."""
+
+    customer_name = serializers.CharField(source="lead.customer_name", read_only=True)
+    company_name = serializers.CharField(source="lead.company_name", read_only=True)
+    stage_name = serializers.CharField(source="lead.stage.name", read_only=True)
+    record_type_display = serializers.CharField(
+        source="lead.get_record_type_display",
+        read_only=True,
+    )
+    address = serializers.CharField(source="lead.address", read_only=True)
+    latitude = serializers.DecimalField(
+        source="lead.latitude",
+        max_digits=9,
+        decimal_places=6,
+        read_only=True,
+        allow_null=True,
+    )
+    longitude = serializers.DecimalField(
+        source="lead.longitude",
+        max_digits=9,
+        decimal_places=6,
+        read_only=True,
+        allow_null=True,
+    )
+    location_url = serializers.SerializerMethodField()
+    requested_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    line_items = PricingLineItemReadSerializer(source="lead.items", many=True, read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    response_line_items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PricingRequest
+        fields = [
+            "id",
+            "status",
+            "status_display",
+            "customer_name",
+            "company_name",
+            "stage_name",
+            "record_type_display",
+            "address",
+            "latitude",
+            "longitude",
+            "location_url",
+            "requested_by_name",
+            "assigned_to_name",
+            "requested_at",
+            "responded_at",
+            "submission_mode",
+            "response_remarks",
+            "price_validity",
+            "line_items",
+            "response_line_items",
+        ]
+        read_only_fields = fields
+
+    def get_location_url(self, obj):
+        from apps.attendance.utils import get_maps_url
+
+        return get_maps_url(obj.lead.latitude, obj.lead.longitude)
+
+    def get_requested_by_name(self, obj):
+        if obj.requested_by_id:
+            return obj.requested_by.get_full_name() or obj.requested_by.username
+        return None
+
+    def get_assigned_to_name(self, obj):
+        assignee = obj.lead.assigned_to
+        if assignee:
+            return assignee.get_full_name() or assignee.username
+        return None
+
+    def get_response_line_items(self, obj):
+        response_items = list(obj.line_items.all())
+        if not response_items:
+            return []
+        return PricingResponseLineItemSerializer(response_items, many=True).data
+
+
 class PublicPricingSubmitSerializer(serializers.Serializer):
     response_remarks = serializers.CharField(required=False, allow_blank=True, default="")
+    price_validity = serializers.DateField(required=True)
     line_items = serializers.ListField(
         child=serializers.DictField(),
         required=True,

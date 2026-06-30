@@ -4,6 +4,7 @@ DRF permission classes for Pravartee CRM role-based access control.
 from rest_framework import permissions
 
 from apps.accounts.access import user_can_access_lead, user_sees_all_leads
+from apps.accounts.choices import UserRole
 
 
 class IsAuthenticatedCRMUser(permissions.BasePermission):
@@ -23,6 +24,19 @@ class IsCEO(permissions.BasePermission):
             request.user
             and request.user.is_authenticated
             and request.user.is_ceo,
+        )
+
+
+class IsCommercial(permissions.BasePermission):
+    """Allow only Commercial (pricing team) role."""
+
+    message = "This action requires Commercial privileges."
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, "is_commercial", False),
         )
 
 

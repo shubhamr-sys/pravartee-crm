@@ -13,6 +13,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "CEO", label: "CEO" },
   { value: "SALES_HEAD", label: "Sales Head" },
   { value: "SALESPERSON", label: "Salesperson" },
+  { value: "COMMERCIAL", label: "Commercial (Pricing)" },
 ];
 
 interface UserFormModalProps {

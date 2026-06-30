@@ -62,6 +62,7 @@ def submit_pricing_response(
     *,
     line_items_data: list[dict] | None = None,
     response_remarks: str = "",
+    price_validity=None,
 ) -> PricingRequest:
     """Save manual line-item pricing from the public pricing form."""
     if pricing_request.status == PricingRequestStatus.RESPONDED:
@@ -108,7 +109,11 @@ def submit_pricing_response(
     if priced_item_ids != lead_item_ids:
         raise ValueError("Enter a unit price for every product line.")
 
+    if price_validity is None:
+        raise ValueError("Price validity date is required.")
+
     pricing_request.response_remarks = response_remarks
+    pricing_request.price_validity = price_validity
     pricing_request.status = PricingRequestStatus.RESPONDED
     pricing_request.responded_at = timezone.now()
     pricing_request.save()

@@ -151,6 +151,7 @@ export default function UsersPage() {
                         <option value="CEO">CEO</option>
                         <option value="SALES_HEAD">Sales Head</option>
                         <option value="SALESPERSON">Salesperson</option>
+                        <option value="COMMERCIAL">Commercial (Pricing)</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">

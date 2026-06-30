@@ -54,6 +54,11 @@ class PricingRequest(TimeStampedModel):
         blank=True,
     )
     response_remarks = models.TextField(blank=True)
+    price_validity = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date until which the submitted prices remain valid.",
+    )
     vendor_quote_pdf = models.FileField(
         upload_to=pricing_vendor_upload_path,
         blank=True,

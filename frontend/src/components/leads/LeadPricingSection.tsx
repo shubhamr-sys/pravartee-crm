@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LoadingState, ErrorState } from "@/components/leads/StatusMessage";
-import { formatCurrency, formatDateTime } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import {
   createPricingRequest,
   fetchLeadPricingRequests,
@@ -197,6 +197,12 @@ export default function LeadPricingSection({
                   </span>
                 )}
               </div>
+
+              {request.price_validity && (
+                <p className="mt-2 text-sm font-medium text-slate-800">
+                  Price validity: {formatDate(request.price_validity)}
+                </p>
+              )}
 
               {request.response_remarks && (
                 <p className="mt-2 text-sm text-slate-700">{request.response_remarks}</p>

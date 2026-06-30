@@ -9,7 +9,9 @@ import {
   fetchPublicPricingRequest,
   submitPublicPricing,
 } from "@/lib/pricingService";
-import type { ManualPricingLineInput, PublicPricingRequest } from "@/types/pricing";
+import PricingSubmitForm from "@/components/pricing/PricingSubmitForm";
+import { formatDate } from "@/lib/format";
+import type { PublicPricingRequest } from "@/types/pricing";
 
 function submitErrorMessage(err: unknown): string {
   if (!axios.isAxiosError(err) || !err.response?.data) {
@@ -54,8 +56,6 @@ export default function PublicPricingRequestPage() {
   const [request, setRequest] = useState<PublicPricingRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [responseRemarks, setResponseRemarks] = useState("");
-  const [lineInputs, setLineInputs] = useState<Record<string, ManualPricingLineInput>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -66,15 +66,6 @@ export default function PublicPricingRequestPage() {
       try {
         const data = await fetchPublicPricingRequest(token);
         setRequest(data);
-        const initial: Record<string, ManualPricingLineInput> = {};
-        for (const item of data.line_items) {
-          initial[item.id] = {
-            lead_item_id: item.id,
-            unit_price: "",
-            remarks: "",
-          };
-        }
-        setLineInputs(initial);
       } catch {
         setError("Invalid or expired pricing request link.");
       } finally {
@@ -84,30 +75,22 @@ export default function PublicPricingRequestPage() {
     void load();
   }, [token]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(payload: {
+    response_remarks: string;
+    price_validity: string;
+    line_items: { lead_item_id: string; unit_price: string; remarks: string }[];
+  }) {
     if (!request || request.status === "RESPONDED") return;
-
-    const line_items = Object.values(lineInputs).filter((row) => row.unit_price.trim());
-    const missingPrices = request.line_items.filter(
-      (item) => !lineInputs[item.id]?.unit_price?.trim(),
-    );
-    if (missingPrices.length > 0) {
-      setError("Enter a unit price for every product line.");
-      return;
-    }
 
     setIsSubmitting(true);
     setError(null);
     try {
-      const updated = await submitPublicPricing(token, {
-        response_remarks: responseRemarks,
-        line_items,
-      });
+      const updated = await submitPublicPricing(token, payload);
       setRequest(updated);
       setSuccess("Pricing submitted successfully. The lead owner has been notified.");
     } catch (err) {
       setError(submitErrorMessage(err));
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
@@ -194,86 +177,28 @@ export default function PublicPricingRequestPage() {
         )}
 
         {isResponded && (
-          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            This pricing request has already been submitted and is closed. If you need to send
-            updated pricing, ask the sales team to send a new pricing request from the CRM.
+          <div className="mt-6 space-y-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {request.price_validity ? (
+              <p>
+                <span className="font-medium">Price validity:</span>{" "}
+                {formatDate(request.price_validity)}
+              </p>
+            ) : null}
+            <p>
+              This pricing request has already been submitted and is closed. If you need to send
+              updated pricing, ask the sales team to send a new pricing request from the CRM.
+            </p>
           </div>
         )}
 
         {!isResponded && (
-          <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-6">
-            <div>
-              <h3 className="text-sm font-medium text-slate-700">Unit prices *</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Enter the unit price for every product line below. All prices are required.
-              </p>
-              <div className="mt-3 space-y-3">
-                {request.line_items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-3"
-                  >
-                    <p className="text-sm font-medium sm:col-span-3">
-                      {hierarchyLabel(item)} × {item.quantity}
-                    </p>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      required
-                      placeholder="Unit price *"
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      value={lineInputs[item.id]?.unit_price ?? ""}
-                      onChange={(e) =>
-                        setLineInputs((prev) => ({
-                          ...prev,
-                          [item.id]: {
-                            ...prev[item.id],
-                            lead_item_id: item.id,
-                            unit_price: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      placeholder="Line remarks"
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
-                      value={lineInputs[item.id]?.remarks ?? ""}
-                      onChange={(e) =>
-                        setLineInputs((prev) => ({
-                          ...prev,
-                          [item.id]: {
-                            ...prev[item.id],
-                            lead_item_id: item.id,
-                            remarks: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Response remarks</label>
-              <textarea
-                rows={3}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={responseRemarks}
-                onChange={(e) => setResponseRemarks(e.target.value)}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
-            >
-              {isSubmitting ? "Submitting..." : "Submit Pricing"}
-            </button>
-          </form>
+          <div className="mt-8">
+            <PricingSubmitForm
+              lineItems={request.line_items}
+              isSubmitting={isSubmitting}
+              onSubmit={handleSubmit}
+            />
+          </div>
         )}
       </div>
     </div>

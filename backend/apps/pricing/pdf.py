@@ -132,5 +132,14 @@ def generate_quotation_pdf(pricing_request: PricingRequest) -> bytes:
         story.append(Paragraph("<b>Remarks:</b>", styles["Normal"]))
         story.append(Paragraph(pricing_request.response_remarks, styles["Normal"]))
 
+    if pricing_request.price_validity:
+        story.append(Spacer(1, 12))
+        story.append(
+            Paragraph(
+                f"<b>Price validity:</b> {pricing_request.price_validity:%d %b %Y}",
+                styles["Normal"],
+            )
+        )
+
     doc.build(story)
     return buffer.getvalue()

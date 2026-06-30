@@ -2,6 +2,7 @@
 Pricing request workflow tests.
 """
 import json
+from datetime import datetime
 from decimal import Decimal
 from io import BytesIO
 from unittest.mock import patch
@@ -30,6 +31,8 @@ User = get_user_model()
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
 )
 class PricingWorkflowTestCase(TestCase):
+    PRICE_VALIDITY = "2026-12-31"
+
     @classmethod
     def setUpTestData(cls):
         cls.category = ProductCategory.objects.get(name="IT")
@@ -55,6 +58,12 @@ class PricingWorkflowTestCase(TestCase):
             email="other_pricing@test.com",
             password="pass12345",
             role=UserRole.SALESPERSON,
+        )
+        cls.commercial = User.objects.create_user(
+            username="commercial_pricing",
+            email="commercial_pricing@test.com",
+            password="pass12345",
+            role=UserRole.COMMERCIAL,
         )
 
         cls.lead = Lead.objects.create(
@@ -158,12 +167,14 @@ class PricingWorkflowTestCase(TestCase):
                     }
                 ],
                 "response_remarks": "Submitted manually",
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         pricing_request.refresh_from_db()
         self.assertEqual(pricing_request.status, PricingRequestStatus.RESPONDED)
+        self.assertEqual(str(pricing_request.price_validity), self.PRICE_VALIDITY)
         self.assertFalse(pricing_request.generated_quotation_pdf)
         line_item = pricing_request.line_items.get()
         self.assertEqual(line_item.unit_price, Decimal("50000.00"))
@@ -192,6 +203,7 @@ class PricingWorkflowTestCase(TestCase):
                         "remarks": "Best vendor rate",
                     }
                 ],
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="json",
         )
@@ -216,6 +228,7 @@ class PricingWorkflowTestCase(TestCase):
                         "remarks": "Best vendor rate",
                     }
                 ],
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="json",
         )
@@ -260,6 +273,7 @@ class PricingWorkflowTestCase(TestCase):
                     }
                 ],
                 "response_remarks": "Submitted manually",
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="json",
         )
@@ -316,6 +330,7 @@ class PricingWorkflowTestCase(TestCase):
             {
                 "line_items": line_items,
                 "response_remarks": "Submitted via multipart",
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="multipart",
         )
@@ -340,6 +355,7 @@ class PricingWorkflowTestCase(TestCase):
                     }
                 ],
                 "response_remarks": "Missing price",
+                "price_validity": self.PRICE_VALIDITY,
             },
             format="json",
         )
@@ -414,4 +430,218 @@ class PricingWorkflowTestCase(TestCase):
                         "remarks": "",
                     }
                 ],
+                price_validity=timezone.now().date(),
             )
+
+    def test_commercial_user_sees_pricing_queue(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get("/api/v1/pricing/queue/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], str(pricing_request.id))
+        self.assertEqual(response.data[0]["customer_name"], "Pricing Customer")
+        self.assertEqual(len(response.data[0]["line_items"]), 1)
+
+    def test_salesperson_cannot_access_pricing_queue(self):
+        PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.salesperson)
+        response = self.client.get("/api/v1/pricing/queue/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_commercial_user_submits_pricing_via_queue(self):
+        pricing_request = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.post(
+            f"/api/v1/pricing/queue/{pricing_request.id}/submit/",
+            {
+                "response_remarks": "Best vendor rates",
+                "price_validity": self.PRICE_VALIDITY,
+                "line_items": [
+                    {
+                        "lead_item_id": str(self.lead_item.id),
+                        "unit_price": "45000.00",
+                        "remarks": "Including GST",
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        pricing_request.refresh_from_db()
+        self.assertEqual(pricing_request.status, PricingRequestStatus.RESPONDED)
+        self.assertEqual(pricing_request.response_remarks, "Best vendor rates")
+        self.assertEqual(str(pricing_request.price_validity), self.PRICE_VALIDITY)
+        self.assertTrue(
+            any("Pricing Response Received" in msg.subject for msg in mail.outbox),
+        )
+
+    def test_pricing_queue_filter_by_search(self):
+        other_lead = Lead.objects.create(
+            customer_name="Alpha Project",
+            company_name="Alpha Ltd",
+            category=self.category,
+            stage=self.stage,
+            assigned_to=self.salesperson,
+        )
+        PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        PricingRequest.objects.create(
+            lead=other_lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get("/api/v1/pricing/queue/", {"search": "Alpha"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["customer_name"], "Alpha Project")
+
+    def test_pricing_queue_filter_by_sales_owner(self):
+        other_lead = Lead.objects.create(
+            customer_name="Other Owner Lead",
+            category=self.category,
+            stage=self.stage,
+            assigned_to=self.other_sales,
+        )
+        PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        PricingRequest.objects.create(
+            lead=other_lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.other_sales,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get(
+            "/api/v1/pricing/queue/",
+            {"assigned_to": str(self.other_sales.id)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["customer_name"], "Other Owner Lead")
+
+    def test_pricing_queue_filter_by_exact_date(self):
+        older = PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        older.requested_at = timezone.make_aware(datetime(2026, 1, 10, 9, 0, 0))
+        older.save(update_fields=["requested_at"])
+
+        other_lead = Lead.objects.create(
+            customer_name="Later Lead",
+            category=self.category,
+            stage=self.stage,
+            assigned_to=self.salesperson,
+        )
+        newer = PricingRequest.objects.create(
+            lead=other_lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        newer.requested_at = timezone.make_aware(datetime(2026, 1, 15, 9, 0, 0))
+        newer.save(update_fields=["requested_at"])
+
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get(
+            "/api/v1/pricing/queue/",
+            {"requested_on": "2026-01-10"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], str(older.id))
+
+    def test_pricing_queue_invalid_date_returns_400(self):
+        PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get(
+            "/api/v1/pricing/queue/",
+            {"requested_on": "not-a-date"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pricing_queue_order_ascending(self):
+        older_lead = Lead.objects.create(
+            customer_name="Older Lead",
+            category=self.category,
+            stage=self.stage,
+            assigned_to=self.salesperson,
+        )
+        newer_lead = Lead.objects.create(
+            customer_name="Newer Lead",
+            category=self.category,
+            stage=self.stage,
+            assigned_to=self.salesperson,
+        )
+        older = PricingRequest.objects.create(
+            lead=older_lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        older.requested_at = timezone.make_aware(datetime(2026, 1, 1, 9, 0, 0))
+        older.save(update_fields=["requested_at"])
+        newer = PricingRequest.objects.create(
+            lead=newer_lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        newer.requested_at = timezone.make_aware(datetime(2026, 1, 20, 9, 0, 0))
+        newer.save(update_fields=["requested_at"])
+
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get(
+            "/api/v1/pricing/queue/",
+            {"order": "requested_at"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response.data[0]["id"], str(older.id))
+        self.assertEqual(response.data[1]["id"], str(newer.id))
+
+    def test_pricing_queue_owners_endpoint(self):
+        PricingRequest.objects.create(
+            lead=self.lead,
+            token=PricingRequest.generate_token(),
+            requested_by=self.salesperson,
+            status=PricingRequestStatus.PENDING,
+        )
+        self.client.force_authenticate(user=self.commercial)
+        response = self.client.get("/api/v1/pricing/queue/owners/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], str(self.salesperson.id))

@@ -7,3 +7,4 @@ class UserRole(models.TextChoices):
     CEO = "CEO", "CEO"
     SALES_HEAD = "SALES_HEAD", "Sales Head"
     SALESPERSON = "SALESPERSON", "Salesperson"
+    COMMERCIAL = "COMMERCIAL", "Commercial"
