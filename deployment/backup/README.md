@@ -55,7 +55,7 @@ Add to the **root** `.env`:
 BACKUP_DIR=/var/backups/pravartee-crm
 BACKUP_LOCAL_RETAIN_DAYS=14
 BACKUP_RCLONE_REMOTE=gdrive:PravarteeCRM-Backups
-BACKUP_RCLONE_RETAIN_DAYS=30
+BACKUP_RCLONE_RETAIN_DAYS=20
 ```
 
 | Variable | Default | Description |
@@ -63,7 +63,8 @@ BACKUP_RCLONE_RETAIN_DAYS=30
 | `BACKUP_DIR` | `./backups` | Local dump directory |
 | `BACKUP_LOCAL_RETAIN_DAYS` | `14` | Delete local files older than N days (`0` = keep all) |
 | `BACKUP_RCLONE_REMOTE` | *(empty)* | rclone remote path, e.g. `gdrive:PravarteeCRM-Backups` |
-| `BACKUP_RCLONE_RETAIN_DAYS` | `30` | Prune remote dumps older than N days |
+| `BACKUP_RCLONE_RETAIN_DAYS` | `30` | Move remote dumps older than N days to Google Drive trash |
+| `BACKUP_RCLONE_USE_TRASH` | `true` | Use `--drive-use-trash` when pruning (Google Drive) |
 | `POSTGRES_CONTAINER` | `pravartee_crm_postgres` | Docker container name |
 
 Create backup directory (production):
@@ -95,8 +96,8 @@ crontab -e
 ```
 
 ```cron
-# Daily at 2:00 AM — local dump + Google Drive
-0 2 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
+# Daily at 2:00 AM — local dump + Google Drive (log under .run/ — writable without sudo)
+0 2 * * * /bin/bash -lc '/home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /home/development/Documents/pravartee-crm-main/.run/backup-cron.log 2>&1'
 ```
 
 Replace the path with your repo location. Ensure the cron user is in the `docker` group:
@@ -154,4 +155,4 @@ Test restores on a copy of the database before overwriting production.
 | `container is not running` | `cd deployment/postgresql && docker compose up -d` |
 | `rclone not found` | Install rclone or clear `BACKUP_RCLONE_REMOTE` for local-only |
 | `permission denied` on `/var/backups` | `sudo chown $USER /var/backups/pravartee-crm` |
-| Cron silent failure | Check `/var/log/pravartee-backup.log` and `grep CRON /var/log/syslog` |
+| Cron silent failure | Check `.run/backup-cron.log` and `grep backup-db /var/log/syslog` |

@@ -31,6 +31,22 @@ log() {
   echo "$(date -Is) $*"
 }
 
+rclone_with_retry() {
+  local tries=3
+  local delay=45
+  while (( tries > 0 )); do
+    if rclone "$@"; then
+      return 0
+    fi
+    tries=$((tries - 1))
+    if (( tries > 0 )); then
+      log "WARN: rclone failed, retrying in ${delay}s (${tries} left) ..."
+      sleep "$delay"
+    fi
+  done
+  return 1
+}
+
 if ! command -v docker >/dev/null 2>&1; then
   log "ERROR: docker not found."
   exit 1
@@ -59,13 +75,22 @@ if [[ -n "$BACKUP_RCLONE_REMOTE" ]]; then
     exit 1
   fi
   log "Uploading to ${BACKUP_RCLONE_REMOTE} ..."
-  rclone copy "$FILE" "${BACKUP_RCLONE_REMOTE%/}/" --stats-one-line
+  if ! rclone_with_retry copy "$FILE" "${BACKUP_RCLONE_REMOTE%/}/" --stats-one-line; then
+    log "ERROR: Upload to ${BACKUP_RCLONE_REMOTE} failed after retries."
+    exit 1
+  fi
   if [[ "$BACKUP_RCLONE_RETAIN_DAYS" =~ ^[0-9]+$ ]] && [[ "$BACKUP_RCLONE_RETAIN_DAYS" -gt 0 ]]; then
-    log "Pruning remote backups older than ${BACKUP_RCLONE_RETAIN_DAYS} days ..."
-    rclone delete "${BACKUP_RCLONE_REMOTE%/}/" \
-      --min-age "${BACKUP_RCLONE_RETAIN_DAYS}d" \
-      --include "pravartee_crm_*.sql.gz" \
-      --stats-one-line || true
+    log "Moving remote backups older than ${BACKUP_RCLONE_RETAIN_DAYS} days to Google Drive trash ..."
+    prune_args=(
+      delete "${BACKUP_RCLONE_REMOTE%/}/"
+      --min-age "${BACKUP_RCLONE_RETAIN_DAYS}d"
+      --include "pravartee_crm_*.sql.gz"
+      --stats-one-line
+    )
+    if [[ "${BACKUP_RCLONE_USE_TRASH:-true}" == "true" ]]; then
+      prune_args+=(--drive-use-trash)
+    fi
+    rclone_with_retry "${prune_args[@]}" || log "WARN: Remote prune failed (upload succeeded)."
   fi
   log "Upload complete."
 fi

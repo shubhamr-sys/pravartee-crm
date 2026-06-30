@@ -6,7 +6,7 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # --- Daily database backup at 2:00 AM (local + Google Drive if configured) ---
-0 2 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
+0 2 * * * /bin/bash -lc '/home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /home/development/Documents/pravartee-crm-main/.run/backup-cron.log 2>&1'
 
 # --- Optional: every 6 hours ---
 # 0 */6 * * * /home/development/Documents/pravartee-crm-main/scripts/backup-db.sh >> /var/log/pravartee-backup.log 2>&1
