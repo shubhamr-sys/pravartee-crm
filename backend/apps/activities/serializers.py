@@ -16,6 +16,10 @@ class LeadActivitySerializer(serializers.ModelSerializer):
         source="lead.customer_name",
         read_only=True,
     )
+    lead_company_name = serializers.CharField(
+        source="lead.company_name",
+        read_only=True,
+    )
 
     class Meta:
         model = LeadActivity
@@ -23,6 +27,7 @@ class LeadActivitySerializer(serializers.ModelSerializer):
             "id",
             "lead",
             "lead_customer_name",
+            "lead_company_name",
             "user",
             "user_name",
             "user_username",

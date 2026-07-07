@@ -2,6 +2,7 @@ export interface LeadActivity {
   id: string;
   lead: string;
   lead_customer_name?: string;
+  lead_company_name?: string;
   user: string | null;
   user_name: string | null;
   user_username?: string | null;

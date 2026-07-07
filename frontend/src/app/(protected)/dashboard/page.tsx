@@ -295,6 +295,9 @@ export default function DashboardPage() {
                           className="text-teal-700 hover:text-teal-800"
                         >
                           {activity.lead_customer_name || "Lead"}
+                          {activity.lead_company_name
+                            ? ` · ${activity.lead_company_name}`
+                            : ""}
                         </Link>
                         {" · "}
                         {activity.activity_label}

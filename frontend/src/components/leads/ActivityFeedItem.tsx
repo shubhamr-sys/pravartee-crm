@@ -44,6 +44,9 @@ export default function ActivityFeedItem({
               className="font-medium text-teal-700 hover:text-teal-800"
             >
               {activity.lead_customer_name}
+              {activity.lead_company_name
+                ? ` · ${activity.lead_company_name}`
+                : ""}
             </Link>
           </p>
         )}
