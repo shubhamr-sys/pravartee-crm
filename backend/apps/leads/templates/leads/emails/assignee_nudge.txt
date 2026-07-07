@@ -1,0 +1,29 @@
+Hi {{ assignee_name }},
+
+Here is your Pravartee CRM follow-up nudge for {{ today }}.
+
+{% if overdue_leads %}
+OVERDUE FOLLOW-UPS ({{ overdue_leads|length }})
+{% for lead in overdue_leads %}
+- {{ lead.customer_name }} · {{ lead.company_name }} · {{ lead.stage_name }} · due {{ lead.next_followup_date }}
+  {{ lead.lead_url }}
+{% endfor %}
+{% endif %}
+{% if due_today_leads %}
+DUE TODAY ({{ due_today_leads|length }})
+{% for lead in due_today_leads %}
+- {{ lead.customer_name }} · {{ lead.company_name }} · {{ lead.stage_name }}
+  {{ lead.lead_url }}
+{% endfor %}
+{% endif %}
+{% if no_followup_leads %}
+NO FOLLOW-UP DATE SET ({{ no_followup_leads|length }})
+{% for lead in no_followup_leads %}
+- {{ lead.customer_name }} · {{ lead.company_name }} · {{ lead.stage_name }}
+  {{ lead.lead_url }}
+{% endfor %}
+{% endif %}
+
+View your pipeline: {{ leads_url }}
+
+— Pravartee CRM

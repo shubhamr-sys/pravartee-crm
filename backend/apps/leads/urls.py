@@ -14,6 +14,7 @@ from .followup_views import (
     LeadFollowUpListCreateView,
     LeadStageHistoryListView,
 )
+from .nudge_views import LeadNudgeEmailsView
 from .views import (
     LeadAskForPriceView,
     LeadDetailView,
@@ -45,6 +46,7 @@ urlpatterns = [
     ),
     path("", LeadListCreateView.as_view(), name="lead-list"),
     path("summary/", LeadSummaryView.as_view(), name="lead-summary"),
+    path("nudge-emails/", LeadNudgeEmailsView.as_view(), name="lead-nudge-emails"),
     path(
         "<uuid:lead_id>/follow-ups/",
         LeadFollowUpListCreateView.as_view(),

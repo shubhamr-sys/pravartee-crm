@@ -7,6 +7,7 @@ import AttendanceSummaryCards from "@/components/attendance/AttendanceSummaryCar
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { sendLeadNudgeEmails } from "@/lib/leadsService";
 import { getRoleLabel } from "@/lib/navigation";
 import type { DashboardSummary } from "@/types/dashboard";
 
@@ -14,6 +15,8 @@ export default function DashboardPage() {
   const { user, isCEO, isSalesHead } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nudgeMessage, setNudgeMessage] = useState<string | null>(null);
+  const [isSendingNudge, setIsSendingNudge] = useState(false);
 
   useEffect(() => {
     async function loadSummary() {
@@ -30,6 +33,25 @@ export default function DashboardPage() {
     loadSummary();
   }, []);
 
+  async function handleSendNudgeEmails() {
+    setIsSendingNudge(true);
+    setNudgeMessage(null);
+    try {
+      const result = await sendLeadNudgeEmails();
+      if (result.sent === 0) {
+        setNudgeMessage("No nudge emails were needed — assignees have no overdue or due follow-ups.");
+      } else {
+        setNudgeMessage(
+          `Sent ${result.sent} nudge email${result.sent === 1 ? "" : "s"} to lead assignees.`,
+        );
+      }
+    } catch {
+      setNudgeMessage("Unable to send nudge emails. Check email settings and try again.");
+    } finally {
+      setIsSendingNudge(false);
+    }
+  }
+
   const attendance = summary?.attendance;
   const salespersonMetrics =
     attendance && "today_status" in attendance ? attendance : null;
@@ -43,6 +65,12 @@ export default function DashboardPage() {
           {user ? getRoleLabel(user.role) : "User"}.
         </p>
       </div>
+
+      {nudgeMessage && (
+        <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+          {nudgeMessage}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -81,7 +109,19 @@ export default function DashboardPage() {
 
           {summary.followups && (
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-slate-900">Follow-ups</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-slate-900">Follow-ups</h2>
+                {isCEO ? (
+                  <button
+                    type="button"
+                    disabled={isSendingNudge}
+                    onClick={() => void handleSendNudgeEmails()}
+                    className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
+                  >
+                    {isSendingNudge ? "Sending..." : "Send nudge emails"}
+                  </button>
+                ) : null}
+              </div>
               <div
                 className={`grid gap-4 ${
                   isCEO ? "sm:grid-cols-3" : "sm:grid-cols-2"

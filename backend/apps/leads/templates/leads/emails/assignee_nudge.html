@@ -1,0 +1,42 @@
+<p>Hi {{ assignee_name }},</p>
+<p>Here is your Pravartee CRM follow-up nudge for <strong>{{ today }}</strong>.</p>
+
+{% if overdue_leads %}
+<h3>Overdue follow-ups ({{ overdue_leads|length }})</h3>
+<ul>
+  {% for lead in overdue_leads %}
+  <li>
+    <strong>{{ lead.customer_name }}</strong> · {{ lead.company_name }} · {{ lead.stage_name }}
+    · due {{ lead.next_followup_date }}<br />
+    <a href="{{ lead.lead_url }}">{{ lead.lead_url }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if due_today_leads %}
+<h3>Due today ({{ due_today_leads|length }})</h3>
+<ul>
+  {% for lead in due_today_leads %}
+  <li>
+    <strong>{{ lead.customer_name }}</strong> · {{ lead.company_name }} · {{ lead.stage_name }}<br />
+    <a href="{{ lead.lead_url }}">{{ lead.lead_url }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if no_followup_leads %}
+<h3>No follow-up date set ({{ no_followup_leads|length }})</h3>
+<ul>
+  {% for lead in no_followup_leads %}
+  <li>
+    <strong>{{ lead.customer_name }}</strong> · {{ lead.company_name }} · {{ lead.stage_name }}<br />
+    <a href="{{ lead.lead_url }}">{{ lead.lead_url }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<p><a href="{{ leads_url }}">Open your pipeline in Pravartee CRM</a></p>
+<p>— Pravartee CRM</p>

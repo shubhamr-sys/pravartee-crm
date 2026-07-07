@@ -113,6 +113,17 @@ export async function deleteLead(id: string): Promise<void> {
   await api.delete(`/api/v1/leads/${id}/`);
 }
 
+export interface LeadNudgeEmailResult {
+  sent: number;
+  skipped: number;
+  errors: string[];
+}
+
+export async function sendLeadNudgeEmails(): Promise<LeadNudgeEmailResult> {
+  const { data } = await api.post<LeadNudgeEmailResult>("/api/v1/leads/nudge-emails/", {});
+  return data;
+}
+
 export async function askForPrice(id: string): Promise<{ detail?: string }> {
   const { data } = await api.post<{ detail?: string }>(
     `/api/v1/leads/${id}/ask-for-price/`,
