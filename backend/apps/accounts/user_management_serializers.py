@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.accounts.choices import UserRole
+from apps.accounts.hierarchy import validate_manager_for_role
 
 User = get_user_model()
 
@@ -11,6 +12,8 @@ User = get_user_model()
 class UserManagementListSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    manager_id = serializers.UUIDField(source="manager_id", read_only=True, allow_null=True)
+    manager_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -20,6 +23,8 @@ class UserManagementListSerializer(serializers.ModelSerializer):
             "email",
             "username",
             "role",
+            "manager_id",
+            "manager_name",
             "status",
             "is_active",
             "last_login",
@@ -33,6 +38,11 @@ class UserManagementListSerializer(serializers.ModelSerializer):
     def get_status(self, obj) -> str:
         return "Active" if obj.is_active else "Inactive"
 
+    def get_manager_name(self, obj) -> str | None:
+        if not obj.manager_id:
+            return None
+        return obj.manager.get_full_name()
+
 
 class UserManagementDetailSerializer(UserManagementListSerializer):
     class Meta(UserManagementListSerializer.Meta):
@@ -40,6 +50,12 @@ class UserManagementDetailSerializer(UserManagementListSerializer):
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
+    manager = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_superuser=False),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = User
         fields = [
@@ -48,6 +64,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "email",
             "username",
             "role",
+            "manager",
         ]
 
     def validate_role(self, value):
@@ -65,6 +82,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with this username already exists.")
         return value
 
+    def validate(self, attrs):
+        role = attrs.get("role")
+        manager = attrs.get("manager")
+        try:
+            validate_manager_for_role(role, manager)
+        except ValueError as exc:
+            raise serializers.ValidationError({"manager": str(exc)}) from exc
+        return attrs
+
     def create(self, validated_data):
         temp_password = secrets.token_urlsafe(10)
         user = User.objects.create_user(
@@ -76,11 +102,26 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
+    manager = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_superuser=False),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "role", "is_active"]
+        fields = ["first_name", "last_name", "email", "role", "is_active", "manager"]
 
     def validate_role(self, value):
         if value not in UserRole.values:
             raise serializers.ValidationError("Invalid role.")
         return value
+
+    def validate(self, attrs):
+        role = attrs.get("role", getattr(self.instance, "role", None))
+        manager = attrs.get("manager", getattr(self.instance, "manager", None))
+        try:
+            validate_manager_for_role(role, manager)
+        except ValueError as exc:
+            raise serializers.ValidationError({"manager": str(exc)}) from exc
+        return attrs

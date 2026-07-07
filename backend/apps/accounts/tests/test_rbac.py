@@ -37,6 +37,14 @@ class RBACAPITestCase(TestCase):
             last_name="Sharma",
             role=UserRole.SALES_HEAD,
         )
+        cls.sales_head_b = User.objects.create_user(
+            username="head_b_test",
+            email="headb@test.com",
+            password="pass12345",
+            first_name="Priya",
+            last_name="Singh",
+            role=UserRole.SALES_HEAD,
+        )
         cls.sales_a = User.objects.create_user(
             username="sales_a",
             email="salesa@test.com",
@@ -104,6 +112,15 @@ class RBACAPITestCase(TestCase):
             activity_type=ActivityType.LEAD_CREATED,
         )
 
+        cls.sales_head.manager = cls.ceo
+        cls.sales_head.save(update_fields=["manager"])
+        cls.sales_head_b.manager = cls.ceo
+        cls.sales_head_b.save(update_fields=["manager"])
+        cls.sales_a.manager = cls.sales_head
+        cls.sales_a.save(update_fields=["manager"])
+        cls.sales_b.manager = cls.sales_head_b
+        cls.sales_b.save(update_fields=["manager"])
+
     def setUp(self):
         self.client = APIClient()
 
@@ -141,17 +158,26 @@ class RBACAPITestCase(TestCase):
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/leads/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["count"], 2)
         lead_ids = self._lead_ids_from_list(response)
         self.assertNotIn(str(self.lead_ceo.id), lead_ids)
+        self.assertNotIn(str(self.lead_sales_b.id), lead_ids)
         self.assertEqual(
             lead_ids,
             {
                 str(self.lead_head.id),
                 str(self.lead_sales.id),
-                str(self.lead_sales_b.id),
             },
         )
+
+    def test_sales_head_cannot_see_other_sales_head_or_their_team_leads(self):
+        self._auth(self.sales_head)
+        response = self.client.get(f"/api/v1/leads/{self.lead_sales_b.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self._auth(self.sales_head_b)
+        response = self.client.get(f"/api/v1/leads/{self.lead_sales.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_sales_head_cannot_access_ceo_lead_detail(self):
         self._auth(self.sales_head)
@@ -167,9 +193,9 @@ class RBACAPITestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_sales_head_can_access_non_ceo_leads(self):
+    def test_sales_head_can_access_team_leads_only(self):
         self._auth(self.sales_head)
-        for lead in (self.lead_head, self.lead_sales, self.lead_sales_b):
+        for lead in (self.lead_head, self.lead_sales):
             response = self.client.get(f"/api/v1/leads/{lead.id}/")
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -249,19 +275,19 @@ class RBACAPITestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 4)
 
-    def test_sales_head_activities_exclude_ceo_lead_activities(self):
+    def test_sales_head_activities_exclude_other_teams(self):
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/activities/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["count"], 2)
         activity_ids = self._activity_ids_from_list(response)
         self.assertNotIn(str(self.activity_ceo.id), activity_ids)
+        self.assertNotIn(str(self.activity_sales_b.id), activity_ids)
         self.assertEqual(
             activity_ids,
             {
                 str(self.activity_head.id),
                 str(self.activity_sales.id),
-                str(self.activity_sales_b.id),
             },
         )
 
@@ -295,12 +321,12 @@ class RBACAPITestCase(TestCase):
         self.assertEqual(response.data["total_active_leads"], 4)
         self.assertEqual(response.data["pipeline_leads"], 4)
 
-    def test_sales_head_dashboard_excludes_ceo_leads(self):
+    def test_sales_head_dashboard_scoped_to_team(self):
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/dashboard/summary/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["total_active_leads"], 3)
-        self.assertEqual(response.data["pipeline_leads"], 3)
+        self.assertEqual(response.data["total_active_leads"], 2)
+        self.assertEqual(response.data["pipeline_leads"], 2)
 
     def test_salesperson_dashboard_scoped_to_assigned_leads(self):
         self._auth(self.sales_a)

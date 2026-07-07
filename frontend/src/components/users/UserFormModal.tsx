@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { CreateUserPayload, ManagedUser } from "@/types/userManagement";
@@ -19,6 +19,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 interface UserFormModalProps {
   isOpen: boolean;
   initial?: ManagedUser | null;
+  managers: ManagedUser[];
   isSubmitting?: boolean;
   onClose: () => void;
   onSubmit: (values: CreateUserPayload) => Promise<void>;
@@ -27,6 +28,7 @@ interface UserFormModalProps {
 export default function UserFormModal({
   isOpen,
   initial = null,
+  managers,
   isSubmitting = false,
   onClose,
   onSubmit,
@@ -38,8 +40,19 @@ export default function UserFormModal({
     email: "",
     username: "",
     role: "SALESPERSON",
+    manager: "",
   });
   const [error, setError] = useState<string | null>(null);
+
+  const managerOptions = useMemo(() => {
+    if (values.role === "SALES_HEAD") {
+      return managers.filter((user) => user.role === "CEO");
+    }
+    if (values.role === "SALESPERSON") {
+      return managers.filter((user) => user.role === "SALES_HEAD");
+    }
+    return [];
+  }, [managers, values.role]);
 
   useEffect(() => {
     setMounted(true);
@@ -53,9 +66,16 @@ export default function UserFormModal({
       email: initial?.email ?? "",
       username: initial?.username ?? "",
       role: initial?.role ?? "SALESPERSON",
+      manager: initial?.manager_id ?? "",
     });
     setError(null);
   }, [isOpen, initial]);
+
+  useEffect(() => {
+    if (values.role === "CEO" || values.role === "COMMERCIAL") {
+      setValues((current) => ({ ...current, manager: "" }));
+    }
+  }, [values.role]);
 
   if (!isOpen || !mounted || initial) return null;
 
@@ -69,9 +89,20 @@ export default function UserFormModal({
       setError("Email and username are required.");
       return;
     }
+    if (values.role === "SALES_HEAD" && !values.manager) {
+      setError("Sales Head must report to a CEO.");
+      return;
+    }
+    if (values.role === "SALESPERSON" && !values.manager) {
+      setError("Salesperson must report to a Sales Head.");
+      return;
+    }
     setError(null);
     try {
-      await onSubmit(values);
+      await onSubmit({
+        ...values,
+        manager: values.manager || null,
+      });
       onClose();
     } catch {
       setError("Unable to create user.");
@@ -138,6 +169,25 @@ export default function UserFormModal({
               ))}
             </select>
           </div>
+          {managerOptions.length > 0 ? (
+            <div>
+              <label className="mb-1 block text-sm font-medium">Reports to</label>
+              <select
+                className={inputClass}
+                value={values.manager ?? ""}
+                onChange={(e) =>
+                  setValues((c) => ({ ...c, manager: e.target.value }))
+                }
+              >
+                <option value="">Select manager</option>
+                {managerOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <button

@@ -57,6 +57,14 @@ class User(TimeStampedModel, AbstractUser):
         default=0,
         help_text="Number of forgot-password emails sent (max 3 per account).",
     )
+    manager = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="direct_reports",
+        help_text="Reports-to manager in the CRM hierarchy (CEO for Sales Head, Sales Head for Salesperson).",
+    )
     # created_at, updated_at — from TimeStampedModel
     # id (UUID) — from TimeStampedModel
 

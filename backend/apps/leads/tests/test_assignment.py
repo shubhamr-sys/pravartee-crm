@@ -51,6 +51,11 @@ class LeadAssignmentTestCase(TestCase):
             role=UserRole.SALESPERSON,
         )
 
+        cls.sales_head.manager = cls.ceo
+        cls.sales_head.save(update_fields=["manager"])
+        cls.salesperson.manager = cls.sales_head
+        cls.salesperson.save(update_fields=["manager"])
+
     def setUp(self):
         self.client = APIClient()
 
@@ -122,6 +127,15 @@ class LeadAssignmentTestCase(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(str(response.data["assigned_to"]), str(self.salesperson.id))
+
+    def test_sales_head_cannot_assign_lead_to_salesperson_outside_team(self):
+        self._auth(self.sales_head)
+        response = self.client.post(
+            "/api/v1/leads/",
+            self._lead_payload(assigned_to=str(self.other_salesperson.id)),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_sales_head_cannot_assign_lead_to_ceo(self):
         self._auth(self.sales_head)
@@ -210,7 +224,7 @@ class LeadAssignmentTestCase(TestCase):
         self.assertIn(str(self.sales_head.id), user_ids)
         self.assertIn(str(self.salesperson.id), user_ids)
 
-    def test_assignable_users_for_sales_head_includes_self_and_salespersons(self):
+    def test_assignable_users_for_sales_head_includes_self_and_team_salespersons(self):
         self._auth(self.sales_head)
         response = self.client.get("/api/v1/auth/users/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -218,3 +232,4 @@ class LeadAssignmentTestCase(TestCase):
         self.assertIn(str(self.sales_head.id), user_ids)
         self.assertIn(str(self.salesperson.id), user_ids)
         self.assertNotIn(str(self.ceo.id), user_ids)
+        self.assertNotIn(str(self.other_salesperson.id), user_ids)

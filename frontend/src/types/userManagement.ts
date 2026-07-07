@@ -8,6 +8,8 @@ export interface ManagedUser {
   email: string;
   username: string;
   role: UserRole;
+  manager_id?: string | null;
+  manager_name?: string | null;
   status: string;
   is_active: boolean;
   last_login: string | null;
@@ -20,6 +22,7 @@ export interface CreateUserPayload {
   email: string;
   username: string;
   role: UserRole;
+  manager?: string | null;
 }
 
 export interface UpdateUserPayload {
@@ -28,6 +31,7 @@ export interface UpdateUserPayload {
   email?: string;
   role?: UserRole;
   is_active?: boolean;
+  manager?: string | null;
 }
 
 export interface CreateUserResponse extends ManagedUser {

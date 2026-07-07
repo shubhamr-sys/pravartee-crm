@@ -4,7 +4,7 @@ Role-based queryset scoping for CRM resources.
 from django.contrib.auth import get_user_model
 from django.db.models import Q, QuerySet
 
-from apps.accounts.choices import UserRole
+from apps.accounts.hierarchy import visible_team_members_for_user
 from apps.activities.models import LeadActivity
 from apps.leads.models import FollowUp, Lead
 
@@ -21,14 +21,16 @@ def user_sees_all_leads(user: User) -> bool:
     return user.is_ceo or user.is_sales_head
 
 
+def _team_assignee_ids(user: User):
+    return visible_team_members_for_user(user).values_list("pk", flat=True)
+
+
 def leads_for_user(user: User) -> QuerySet[Lead]:
     """Return leads visible to the given user based on CRM role hierarchy."""
     qs = Lead.objects.select_related("assigned_to", "category", "stage")
     if user.is_ceo:
         return qs
-    if user.is_sales_head:
-        return qs.exclude(assigned_to__role=UserRole.CEO)
-    return qs.filter(assigned_to=user)
+    return qs.filter(assigned_to_id__in=_team_assignee_ids(user))
 
 
 def activities_for_user(user: User) -> QuerySet[LeadActivity]:
@@ -36,9 +38,7 @@ def activities_for_user(user: User) -> QuerySet[LeadActivity]:
     qs = LeadActivity.objects.select_related("lead", "lead__assigned_to", "user")
     if user.is_ceo:
         return qs
-    if user.is_sales_head:
-        return qs.exclude(lead__assigned_to__role=UserRole.CEO)
-    return qs.filter(lead__assigned_to=user)
+    return qs.filter(lead__assigned_to_id__in=_team_assignee_ids(user))
 
 
 def followups_for_user(user: User):
@@ -51,18 +51,16 @@ def followups_for_user(user: User):
     )
     if user.is_ceo:
         return qs
-    if user.is_sales_head:
-        return qs.exclude(lead__assigned_to__role=UserRole.CEO)
-    return qs.filter(Q(assigned_to=user) | Q(lead__assigned_to=user))
+    team_ids = _team_assignee_ids(user)
+    return qs.filter(
+        Q(assigned_to_id__in=team_ids) | Q(lead__assigned_to_id__in=team_ids),
+    )
 
 
 def user_can_access_lead(user: User, lead: Lead) -> bool:
     """Object-level check: may this user access the given lead?"""
     if user.is_ceo:
         return True
-    if user.is_sales_head:
-        assignee = lead.assigned_to
-        if assignee is not None and assignee.role == UserRole.CEO:
-            return False
-        return True
-    return lead.assigned_to_id == user.pk
+    if lead.assigned_to_id is None:
+        return False
+    return visible_team_members_for_user(user).filter(pk=lead.assigned_to_id).exists()

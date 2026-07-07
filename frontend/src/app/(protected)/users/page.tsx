@@ -129,6 +129,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Name</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Email</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Role</th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-600">Reports to</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Status</th>
                   <th className="px-4 py-3 text-left font-medium text-slate-600">Last Login</th>
                   <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
@@ -153,6 +154,9 @@ export default function UsersPage() {
                         <option value="SALESPERSON">Salesperson</option>
                         <option value="COMMERCIAL">Commercial (Pricing)</option>
                       </select>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {user.manager_name || "—"}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -221,6 +225,10 @@ export default function UsersPage() {
                 <dd>{getRoleLabel(selectedUser.role)}</dd>
               </div>
               <div>
+                <dt className="text-slate-500">Reports to</dt>
+                <dd>{selectedUser.manager_name || "—"}</dd>
+              </div>
+              <div>
                 <dt className="text-slate-500">Status</dt>
                 <dd>{selectedUser.status}</dd>
               </div>
@@ -242,6 +250,7 @@ export default function UsersPage() {
 
       <UserFormModal
         isOpen={modalOpen}
+        managers={users}
         isSubmitting={isSubmitting}
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreate}

@@ -38,7 +38,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         (_("Personal info"), {"fields": ("first_name", "last_name", "email")}),
-        (_("CRM"), {"fields": ("role",)}),
+        (_("CRM"), {"fields": ("role", "manager")}),
         (
             _("Permissions"),
             {
@@ -73,6 +73,7 @@ class UserAdmin(BaseUserAdmin):
                     "first_name",
                     "last_name",
                     "role",
+                    "manager",
                     "is_active",
                     "is_staff",
                 ),

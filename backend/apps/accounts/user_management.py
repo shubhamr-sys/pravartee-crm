@@ -17,7 +17,7 @@ SYSTEM_ADMIN_MSG = (
 
 def managed_users_queryset():
     """Users visible and editable through CRM User Management."""
-    return User.objects.filter(is_superuser=False).order_by(
+    return User.objects.filter(is_superuser=False).select_related("manager").order_by(
         "last_name",
         "first_name",
         "username",
