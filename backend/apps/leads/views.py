@@ -16,6 +16,7 @@ from .categories import PRODUCT_CATEGORIES
 from .metrics import get_lead_list_metrics
 from .models import Lead, LeadStage, ProductCategory
 from .serializers import LeadSerializer, LeadStageSerializer, ProductCategorySerializer
+from .stages import CLOSED_STAGES, is_completed_lead
 
 RESPONDED_PRICING_PREFETCH = Prefetch(
     "pricing_requests",
@@ -83,7 +84,13 @@ class LeadListCreateView(generics.ListCreateAPIView):
     ordering = ["-updated_at"]
 
     def get_queryset(self):
-        return leads_for_user(self.request.user).prefetch_related(
+        qs = leads_for_user(self.request.user).filter(is_active=True)
+        pipeline = self.request.query_params.get("pipeline", "open")
+        if pipeline == "completed":
+            qs = qs.filter(stage__name__in=CLOSED_STAGES)
+        else:
+            qs = qs.exclude(stage__name__in=CLOSED_STAGES)
+        return qs.prefetch_related(
             RESPONDED_PRICING_PREFETCH,
             PENDING_PRICING_PREFETCH,
             "items",
@@ -128,9 +135,16 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
     def perform_destroy(self, instance):
+        if is_completed_lead(instance):
+            raise PermissionDenied("Completed leads (Won or Lost) cannot be deleted.")
         if self.request.user.is_salesperson:
             raise PermissionDenied("Salespersons cannot delete leads.")
         instance.delete()
+
+    def perform_update(self, serializer):
+        if is_completed_lead(serializer.instance):
+            raise PermissionDenied("Completed leads (Won or Lost) cannot be edited.")
+        serializer.save()
 
 
 class LeadAskForPriceView(APIView):

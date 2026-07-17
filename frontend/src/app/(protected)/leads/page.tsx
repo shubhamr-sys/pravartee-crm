@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import LeadFilters from "@/components/leads/LeadFilters";
@@ -12,6 +13,7 @@ import {
   ErrorState,
 } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
+import type { LeadPipelineTab } from "@/lib/leadCompletion";
 import {
   fetchAssignableUsers,
   fetchCategories,
@@ -31,6 +33,7 @@ const PAGE_SIZE = 25;
 const PRICING_POLL_INTERVAL_MS = 15_000;
 
 export default function LeadsPage() {
+  const searchParams = useSearchParams();
   const { isCEO, isSalesHead } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -49,6 +52,13 @@ export default function LeadsPage() {
   const [followupFrom, setFollowupFrom] = useState("");
   const [followupTo, setFollowupTo] = useState("");
   const [ordering, setOrdering] = useState("-updated_at");
+  const [pipelineTab, setPipelineTab] = useState<LeadPipelineTab>("open");
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "completed") {
+      setPipelineTab("completed");
+    }
+  }, [searchParams]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
@@ -84,7 +94,11 @@ export default function LeadsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
+  }, [debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering, pipelineTab]);
+
+  useEffect(() => {
+    setStage("");
+  }, [pipelineTab]);
 
   const loadSummary = useCallback(async () => {
     setIsSummaryLoading(true);
@@ -120,6 +134,7 @@ export default function LeadsPage() {
     try {
       const data = await fetchLeads({
         page,
+        pipeline: pipelineTab,
         search: debouncedSearch || undefined,
         stage: stage || undefined,
         category: category || undefined,
@@ -139,7 +154,7 @@ export default function LeadsPage() {
         setIsLoading(false);
       }
     }
-  }, [page, debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
+  }, [page, pipelineTab, debouncedSearch, stage, category, assignedTo, followupFrom, followupTo, ordering]);
 
   const handlePricingRequested = useCallback((leadId: string) => {
     setLeads((current) =>
@@ -173,6 +188,13 @@ export default function LeadsPage() {
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
 
+  const visibleStages = useMemo(() => {
+    if (pipelineTab === "completed") {
+      return stages.filter((item) => item.name === "Won" || item.name === "Lost");
+    }
+    return stages.filter((item) => item.name !== "Won" && item.name !== "Lost");
+  }, [stages, pipelineTab]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -190,10 +212,37 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      {isSummaryLoading ? (
-        <SummaryCardsSkeleton />
-      ) : (
-        <LeadSummaryCards summary={summary} />
+      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setPipelineTab("open")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+            pipelineTab === "open"
+              ? "bg-teal-700 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Active pipeline
+        </button>
+        <button
+          type="button"
+          onClick={() => setPipelineTab("completed")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+            pipelineTab === "completed"
+              ? "bg-teal-700 text-white"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Completed
+        </button>
+      </div>
+
+      {pipelineTab === "open" && (
+        isSummaryLoading ? (
+          <SummaryCardsSkeleton />
+        ) : (
+          <LeadSummaryCards summary={summary} />
+        )
       )}
 
       <LeadFilters
@@ -204,10 +253,11 @@ export default function LeadsPage() {
         followupFrom={followupFrom}
         followupTo={followupTo}
         ordering={ordering}
-        stages={stages}
+        stages={visibleStages}
         categories={categories}
         assignableUsers={assignableUsers}
         showAssigneeFilter={isCEO || isSalesHead}
+        hideFollowupFilters={pipelineTab === "completed"}
         onSearchChange={setSearch}
         onStageChange={setStage}
         onCategoryChange={setCategory}
@@ -228,10 +278,16 @@ export default function LeadsPage() {
           message={
             hasActiveFilters
               ? "No leads match your filters."
-              : "No leads found."
+              : pipelineTab === "completed"
+                ? "No completed leads yet."
+                : "No leads found."
           }
-          actionLabel={hasActiveFilters ? undefined : "Create Lead"}
-          actionHref={hasActiveFilters ? undefined : "/leads/new"}
+          actionLabel={
+            hasActiveFilters || pipelineTab === "completed" ? undefined : "Create Lead"
+          }
+          actionHref={
+            hasActiveFilters || pipelineTab === "completed" ? undefined : "/leads/new"
+          }
         />
       )}
 

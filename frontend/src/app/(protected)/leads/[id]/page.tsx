@@ -18,6 +18,7 @@ import { ErrorState } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
 import { fetchLeadActivities } from "@/lib/activityService";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { isCompletedLead } from "@/lib/leadCompletion";
 import { deleteLead, fetchLead } from "@/lib/leadsService";
 import type { LeadActivity } from "@/types/activity";
 import { getUomLabel } from "@/lib/leadItemUom";
@@ -124,6 +125,7 @@ export default function LeadDetailPage() {
   }
 
   const showPricingLink = lead.has_pricing_response;
+  const completed = isCompletedLead(lead);
 
   return (
     <div className="space-y-6">
@@ -131,10 +133,10 @@ export default function LeadDetailPage() {
         <div>
           <LeadBreadcrumb projectName={lead.customer_name} />
           <Link
-            href="/leads"
+            href={completed ? "/leads?tab=completed" : "/leads"}
             className="mt-3 inline-block text-sm text-teal-700 hover:text-teal-800"
           >
-            ← Back to Leads
+            ← Back to {completed ? "Completed leads" : "Leads"}
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">
             {lead.customer_name}
@@ -152,14 +154,16 @@ export default function LeadDetailPage() {
               View pricing
             </a>
           )}
-          <Link
-            prefetch={false}
-            href={`/leads/${lead.id}/edit`}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
-            Edit Lead
-          </Link>
-          {canDelete && (
+          {!completed && (
+            <Link
+              prefetch={false}
+              href={`/leads/${lead.id}/edit`}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Edit Lead
+            </Link>
+          )}
+          {canDelete && !completed && (
             <button
               type="button"
               onClick={handleDelete}
@@ -171,6 +175,13 @@ export default function LeadDetailPage() {
           )}
         </div>
       </div>
+
+      {completed && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          This lead is <span className="font-semibold">{lead.stage_name}</span> and is
+          read-only. Completed leads cannot be edited or deleted.
+        </div>
+      )}
 
       {showSavedBanner && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -371,6 +382,7 @@ export default function LeadDetailPage() {
 
       <LeadPricingSection
         leadId={lead.id}
+        readOnly={completed}
         onPricingReady={() => {
           setPricingReceivedBanner(true);
           setLead((current) =>
@@ -389,6 +401,7 @@ export default function LeadDetailPage() {
       <LeadFollowUpsSection
         leadId={lead.id}
         defaultAssignedTo={lead.assigned_to ?? ""}
+        readOnly={completed}
         onUpdated={loadLead}
       />
 

@@ -19,6 +19,7 @@ import type { AssignableUser } from "@/types/lead";
 interface LeadFollowUpsSectionProps {
   leadId: string;
   defaultAssignedTo?: string;
+  readOnly?: boolean;
   onUpdated?: () => void;
 }
 
@@ -31,6 +32,7 @@ function statusClass(status: string): string {
 export default function LeadFollowUpsSection({
   leadId,
   defaultAssignedTo = "",
+  readOnly = false,
   onUpdated,
 }: LeadFollowUpsSectionProps) {
   const { user } = useAuth();
@@ -99,18 +101,21 @@ export default function LeadFollowUpsSection({
   }
 
   const hasPending = followups.some((followup) => followup.status === "PENDING");
+  const showActions = hasPending && !readOnly;
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-900">Follow-ups</h2>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
-        >
-          Add Follow-up
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-800"
+          >
+            Add Follow-up
+          </button>
+        )}
       </div>
 
       {isLoading && <LoadingState message="Loading follow-ups..." />}
@@ -130,7 +135,7 @@ export default function LeadFollowUpsSection({
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Remarks</th>
                 <th className="px-3 py-2 font-medium">Action Taken</th>
-                {hasPending && (
+                {showActions && (
                   <th className="px-3 py-2 text-right font-medium">Actions</th>
                 )}
               </tr>
@@ -152,7 +157,7 @@ export default function LeadFollowUpsSection({
                   <td className="px-3 py-2 text-slate-600">
                     {followup.action_taken || "—"}
                   </td>
-                  {hasPending && (
+                  {showActions && (
                     <td className="px-3 py-2 text-right">
                       {followup.status === "PENDING" ? (
                         <button

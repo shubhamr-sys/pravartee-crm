@@ -21,6 +21,7 @@ from .models import (
     ProductModel,
     SOLUTION_CATEGORY_NAME,
 )
+from .stages import is_completed_lead
 
 DUE_SOON_DAYS = 3
 GUT_FEELING_VALUES = list(range(10, 101, 10))
@@ -157,6 +158,7 @@ class LeadDocumentSerializer(serializers.ModelSerializer):
 
 class LeadSerializer(serializers.ModelSerializer):
     stage_name = serializers.CharField(source="stage.name", read_only=True)
+    is_completed = serializers.SerializerMethodField()
     category_name = serializers.CharField(source="category.name", read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     followup_status = serializers.SerializerMethodField()
@@ -189,6 +191,7 @@ class LeadSerializer(serializers.ModelSerializer):
             "category_name",
             "stage",
             "stage_name",
+            "is_completed",
             "business_segment",
             "deal_value",
             "billed_amount",
@@ -220,6 +223,9 @@ class LeadSerializer(serializers.ModelSerializer):
         elif "business_segment" not in validated_data:
             if instance is None:
                 validated_data["business_segment"] = BusinessSegment.TRADING
+
+    def get_is_completed(self, obj) -> bool:
+        return is_completed_lead(obj)
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:
@@ -280,6 +286,11 @@ class LeadSerializer(serializers.ModelSerializer):
         return _normalize_gps_coordinate(lng)
 
     def validate(self, attrs):
+        if self.instance and is_completed_lead(self.instance):
+            raise serializers.ValidationError(
+                "Completed leads (Won or Lost) cannot be edited.",
+            )
+
         latitude = attrs.get("latitude", getattr(self.instance, "latitude", None))
         longitude = attrs.get("longitude", getattr(self.instance, "longitude", None))
         if (latitude is None) ^ (longitude is None):

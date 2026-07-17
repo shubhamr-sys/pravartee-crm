@@ -12,6 +12,7 @@ import {
 } from "@/components/leads/StatusMessage";
 import { useAuth } from "@/context/AuthContext";
 import { leadToFormData } from "@/lib/leadFormUtils";
+import { isCompletedLead } from "@/lib/leadCompletion";
 import {
   fetchAssignableUsers,
   fetchCategories,
@@ -63,6 +64,10 @@ export default function EditLeadPage() {
         canAssign ? fetchAssignableUsers() : Promise.resolve(null),
       ];
       const [leadData, stageData, categoryData, users] = await Promise.all(requests);
+      if (isCompletedLead(leadData)) {
+        router.replace(`/leads/${leadData.id}`);
+        return;
+      }
       setLead(leadData);
       setInitialValues(leadToFormData(leadData));
       setStages(stageData);
@@ -79,7 +84,7 @@ export default function EditLeadPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [params.id, canAssign]);
+  }, [params.id, canAssign, router]);
 
   useEffect(() => {
     loadData();

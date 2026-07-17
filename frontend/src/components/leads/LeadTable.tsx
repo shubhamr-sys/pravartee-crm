@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import FollowupBadge from "@/components/leads/FollowupBadge";
 import { formatDate } from "@/lib/format";
+import { isCompletedLead } from "@/lib/leadCompletion";
 import { askForPrice } from "@/lib/leadsService";
 import type { Lead } from "@/types/lead";
 
@@ -59,6 +60,7 @@ export default function LeadTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {leads.map((lead) => {
+              const completed = isCompletedLead(lead);
               const isAwaitingPricing = Boolean(lead.has_pending_pricing_request);
               const isSending = requestingId === lead.id;
 
@@ -117,24 +119,26 @@ export default function LeadTable({
                           View pricing
                         </Link>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => void handleAskForPrice(lead)}
-                        disabled={isSending || isAwaitingPricing}
-                        title={
-                          isAwaitingPricing
-                            ? "Waiting for pricing response"
-                            : undefined
-                        }
-                        className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isSending
-                          ? "Sending..."
-                          : isAwaitingPricing
-                            ? "Awaiting pricing..."
-                            : "Ask for price"}
-                      </button>
-                      {canEdit && (
+                      {!completed && (
+                        <button
+                          type="button"
+                          onClick={() => void handleAskForPrice(lead)}
+                          disabled={isSending || isAwaitingPricing}
+                          title={
+                            isAwaitingPricing
+                              ? "Waiting for pricing response"
+                              : undefined
+                          }
+                          className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isSending
+                            ? "Sending..."
+                            : isAwaitingPricing
+                              ? "Awaiting pricing..."
+                              : "Ask for price"}
+                        </button>
+                      )}
+                      {canEdit && !completed && (
                         <Link
                           prefetch={false}
                           href={`/leads/${lead.id}/edit`}

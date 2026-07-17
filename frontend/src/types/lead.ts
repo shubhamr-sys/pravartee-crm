@@ -80,6 +80,7 @@ export interface Lead {
   category_name: string;
   stage: string;
   stage_name: string;
+  is_completed?: boolean;
   business_segment?: BusinessSegment;
   deal_value?: string | null;
   billed_amount?: string | null;
@@ -111,6 +112,7 @@ export interface LeadListParams {
   stage?: string;
   category?: string;
   assigned_to?: string;
+  pipeline?: "open" | "completed";
   next_followup_date?: string;
   next_followup_date__gte?: string;
   next_followup_date__lte?: string;

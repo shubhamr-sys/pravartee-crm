@@ -16,6 +16,7 @@ interface LeadFiltersProps {
   categories: ProductCategory[];
   assignableUsers?: AssignableUser[];
   showAssigneeFilter?: boolean;
+  hideFollowupFilters?: boolean;
   onSearchChange: (value: string) => void;
   onStageChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
@@ -47,6 +48,7 @@ export default function LeadFilters({
   categories,
   assignableUsers = [],
   showAssigneeFilter = false,
+  hideFollowupFilters = false,
   onSearchChange,
   onStageChange,
   onCategoryChange,
@@ -122,6 +124,8 @@ export default function LeadFilters({
         </div>
       )}
 
+      {!hideFollowupFilters && (
+        <>
       <div>
         <label htmlFor="followup-from" className="mb-1 block text-xs font-medium text-slate-500">
           Follow-up From
@@ -147,6 +151,8 @@ export default function LeadFilters({
           className={selectClass}
         />
       </div>
+        </>
+      )}
 
       <div className="md:col-span-2 xl:col-span-4">
         <label htmlFor="lead-ordering" className="mb-1 block text-xs font-medium text-slate-500">

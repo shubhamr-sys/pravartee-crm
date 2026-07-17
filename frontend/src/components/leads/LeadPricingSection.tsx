@@ -35,12 +35,14 @@ function legacyPricingPdfUrl(request: PricingRequest): string | null {
 
 interface LeadPricingSectionProps {
   leadId: string;
+  readOnly?: boolean;
   onPricingReady?: (request: PricingRequest) => void;
   onUpdated?: () => void;
 }
 
 export default function LeadPricingSection({
   leadId,
+  readOnly = false,
   onPricingReady,
   onUpdated,
 }: LeadPricingSectionProps) {
@@ -139,24 +141,28 @@ export default function LeadPricingSection({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Pricing</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Request pricing from Commercial / Purchase and view submitted prices here.
+            {readOnly
+              ? "Pricing history for this completed lead."
+              : "Request pricing from Commercial / Purchase and view submitted prices here."}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={isSubmitting || hasPendingRequest}
-          title={
-            hasPendingRequest ? "Waiting for pricing response" : undefined
-          }
-          onClick={() => void handleAskForPrice()}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSubmitting
-            ? "Sending..."
-            : hasPendingRequest
-              ? "Awaiting pricing..."
-              : "Ask for Price"}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            disabled={isSubmitting || hasPendingRequest}
+            title={
+              hasPendingRequest ? "Waiting for pricing response" : undefined
+            }
+            onClick={() => void handleAskForPrice()}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSubmitting
+              ? "Sending..."
+              : hasPendingRequest
+                ? "Awaiting pricing..."
+                : "Ask for Price"}
+          </button>
+        )}
       </div>
 
       {message && (

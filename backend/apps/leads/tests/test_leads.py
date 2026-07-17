@@ -526,3 +526,83 @@ class LeadManagementTestCase(TestCase):
                 activity_type=ActivityType.PRICE_REQUESTED,
             ).exists(),
         )
+
+
+class CompletedLeadTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = ProductCategory.objects.get(name="IT")
+        cls.stage_new = LeadStage.objects.get(name="New")
+        cls.stage_won = LeadStage.objects.get(name="Won")
+        cls.stage_lost = LeadStage.objects.get(name="Lost")
+
+        cls.ceo = User.objects.create_user(
+            username="ceo_completed",
+            email="ceo_completed@test.com",
+            password="pass12345",
+            role=UserRole.CEO,
+        )
+        cls.salesperson = User.objects.create_user(
+            username="sales_completed",
+            email="sales_completed@test.com",
+            password="pass12345",
+            role=UserRole.SALESPERSON,
+        )
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.ceo)
+
+        self.open_lead = Lead.objects.create(
+            customer_name="Open Lead",
+            company_name="Open Co",
+            category=self.category,
+            stage=self.stage_new,
+            assigned_to=self.salesperson,
+        )
+        self.won_lead = Lead.objects.create(
+            customer_name="Won Lead",
+            company_name="Won Co",
+            category=self.category,
+            stage=self.stage_won,
+            assigned_to=self.salesperson,
+        )
+
+    def test_open_pipeline_excludes_won_leads(self):
+        response = self.client.get("/api/v1/leads/", {"pipeline": "open"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [item["customer_name"] for item in response.data["results"]]
+        self.assertIn("Open Lead", names)
+        self.assertNotIn("Won Lead", names)
+
+    def test_completed_pipeline_includes_won_leads(self):
+        response = self.client.get("/api/v1/leads/", {"pipeline": "completed"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [item["customer_name"] for item in response.data["results"]]
+        self.assertIn("Won Lead", names)
+        self.assertNotIn("Open Lead", names)
+
+    def test_completed_lead_detail_flags_is_completed(self):
+        response = self.client.get(f"/api/v1/leads/{self.won_lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_completed"])
+
+    def test_cannot_edit_completed_lead(self):
+        response = self.client.patch(
+            f"/api/v1/leads/{self.won_lead.id}/",
+            {"notes": "Should not save"},
+            format="json",
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_400_BAD_REQUEST, status.HTTP_403_FORBIDDEN],
+        )
+
+    def test_cannot_delete_completed_lead(self):
+        response = self.client.delete(f"/api/v1/leads/{self.won_lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Lead.objects.filter(pk=self.won_lead.pk).exists())
+
+    def test_can_still_delete_open_lead_as_ceo(self):
+        response = self.client.delete(f"/api/v1/leads/{self.open_lead.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)

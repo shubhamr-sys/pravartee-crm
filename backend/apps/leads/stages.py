@@ -54,3 +54,17 @@ def active_pipeline_leads(queryset: "QuerySet") -> "QuerySet":
 def open_pipeline_leads(queryset: "QuerySet") -> "QuerySet":
     """Alias for active pipeline leads (excludes Won/Lost)."""
     return active_pipeline_leads(queryset)
+
+
+def is_completed_stage(stage_name: str) -> bool:
+    return stage_name in CLOSED_STAGES
+
+
+def is_completed_lead(lead) -> bool:
+    """True when lead is Won or Lost (closed / completed)."""
+    if not lead.stage_id:
+        return False
+    name = getattr(lead.stage, "name", None)
+    if name is None and hasattr(lead, "stage_name"):
+        name = lead.stage_name
+    return is_completed_stage(name or "")
