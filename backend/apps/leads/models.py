@@ -112,6 +112,11 @@ class LeadRecordType(models.TextChoices):
     VISIT = "VISIT", "Visit"
 
 
+class BusinessSegment(models.TextChoices):
+    TRADING = "TRADING", "Trading"
+    SOLUTIONS = "SOLUTIONS", "Solutions"
+
+
 GUT_FEELING_PERCENT_CHOICES = [(value, f"{value}%") for value in range(10, 101, 10)]
 
 
@@ -139,6 +144,42 @@ class Lead(TimeStampedModel):
         choices=LeadRecordType.choices,
         default=LeadRecordType.LEAD,
     )
+    business_segment = models.CharField(
+        max_length=20,
+        choices=BusinessSegment.choices,
+        default=BusinessSegment.TRADING,
+        db_index=True,
+        help_text="MBR Sales pack segment: Trading (PC/Laptop/etc.) or Solutions.",
+    )
+    deal_value = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Opportunity / order booking value (₹).",
+    )
+    billed_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Revenue / billing amount (₹). Defaults to deal value when won if empty.",
+    )
+    gross_margin_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Gross margin amount (₹).",
+    )
+    expected_close_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expected close month/date for pipeline forecasting.",
+    )
+    lost_reason = models.CharField(max_length=255, blank=True)
+    competitor = models.CharField(max_length=255, blank=True)
+    recovery_action = models.TextField(blank=True)
     next_followup_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
     assigned_to = models.ForeignKey(
@@ -180,6 +221,26 @@ class Lead(TimeStampedModel):
 
     def __str__(self):
         return f"{self.customer_name} - {self.company_name or 'N/A'}"
+
+    def resolve_business_segment(self) -> str:
+        """Map product category to MBR Trading / Solutions segment."""
+        category_name = ""
+        if self.category_id:
+            category_name = getattr(self.category, "name", "") or ""
+        if category_name == SOLUTION_CATEGORY_NAME:
+            return BusinessSegment.SOLUTIONS
+        return BusinessSegment.TRADING
+
+    def effective_billed_amount(self):
+        if self.billed_amount is not None:
+            return self.billed_amount
+        return self.deal_value
+
+    def weighted_pipeline_value(self):
+        if self.deal_value is None:
+            return None
+        prob = self.gut_feeling_percent or 0
+        return (self.deal_value * prob) / 100
 
 
 class LeadItem(TimeStampedModel):

@@ -108,6 +108,16 @@ class LeadAssignmentTestCase(TestCase):
 
     # --- Sales Head assignment ---
 
+    def test_sales_head_creates_lead_assigned_to_self_when_omitted(self):
+        self._auth(self.sales_head)
+        response = self.client.post(
+            "/api/v1/leads/",
+            self._lead_payload(),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(response.data["assigned_to"]), str(self.sales_head.id))
+
     def test_sales_head_creates_lead_assigned_to_self(self):
         self._auth(self.sales_head)
         response = self.client.post(

@@ -27,6 +27,7 @@ export function getNavItemsForRole(role: UserRole): NavItem[] {
     { href: "/leads", label: "Leads" },
     { href: "/activities", label: "Activities" },
     { href: "/attendance", label: "Attendance" },
+    { href: "/visits", label: "Visits" },
     { href: "/expenses", label: "Expenses" },
   ];
 

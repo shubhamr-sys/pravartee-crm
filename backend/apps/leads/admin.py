@@ -57,16 +57,68 @@ class LeadAdmin(admin.ModelAdmin):
     list_display = (
         "customer_name",
         "company_name",
+        "business_segment",
+        "deal_value",
         "stage",
         "assigned_to",
         "next_followup_date",
         "is_active",
     )
-    list_filter = ("stage", "category", "is_active")
+    list_filter = ("stage", "category", "business_segment", "is_active")
     search_fields = ("customer_name", "company_name", "contact_person", "phone", "email")
     autocomplete_fields = ("assigned_to",)
     date_hierarchy = "created_at"
     inlines = [LeadItemInline]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "customer_name",
+                    "company_name",
+                    "contact_person",
+                    "phone",
+                    "email",
+                    "address",
+                    "stage",
+                    "category",
+                    "assigned_to",
+                    "is_active",
+                ),
+            },
+        ),
+        (
+            "Sales MBR commercial",
+            {
+                "fields": (
+                    "business_segment",
+                    "deal_value",
+                    "billed_amount",
+                    "gross_margin_amount",
+                    "expected_close_date",
+                    "gut_feeling_percent",
+                ),
+            },
+        ),
+        (
+            "Lost deal",
+            {
+                "fields": ("lost_reason", "competitor", "recovery_action"),
+            },
+        ),
+        (
+            "Other",
+            {
+                "fields": (
+                    "next_followup_date",
+                    "notes",
+                    "latitude",
+                    "longitude",
+                    "record_type",
+                ),
+            },
+        ),
+    )
 
 
 @admin.register(LeadItem)

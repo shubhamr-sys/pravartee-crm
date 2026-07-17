@@ -6,16 +6,92 @@ export interface SalesMBRFilters {
   category_id: string | null;
 }
 
+export interface SalesMBRMetricScopes {
+  period: string;
+  snapshot: string;
+}
+
+export interface SalesSegmentPerformance {
+  segment: string;
+  segment_display: string;
+  order_booking: number;
+  order_booking_target: number;
+  order_booking_var_pct: number | null;
+  revenue: number;
+  revenue_target: number;
+  revenue_var_pct: number | null;
+  gross_margin: number;
+  gross_margin_target: number;
+  gross_margin_var_pct: number | null;
+  gross_margin_pct: number | null;
+  deals_won: number;
+  deals_won_target: number;
+  avg_deal_size: number;
+}
+
+export interface SalesPerformancePack {
+  trading: SalesSegmentPerformance;
+  solutions: SalesSegmentPerformance;
+  total: SalesSegmentPerformance;
+}
+
+export interface TopCustomerRevenueRow {
+  lead_id: string;
+  customer: string;
+  company: string;
+  segment: string;
+  segment_display: string;
+  revenue: number;
+  gross_margin: number;
+  gross_margin_pct: number | null;
+  collection_status: string;
+}
+
+export interface ForwardPipelineOpportunity {
+  lead_id: string;
+  customer: string;
+  company: string;
+  segment: string;
+  segment_display: string;
+  stage: string;
+  value: number;
+  win_probability: number;
+  weighted_value: number;
+  expected_close_month: string;
+  expected_close_date: string | null;
+}
+
+export interface ForwardPipeline {
+  opportunities: ForwardPipelineOpportunity[];
+  total_pipeline_value: number;
+  total_weighted_pipeline: number;
+}
+
+export interface LostDealRow {
+  lead_id: string;
+  customer: string;
+  company: string;
+  value: number;
+  stage_lost: string;
+  reason: string;
+  competitor: string;
+  recovery_action: string;
+}
+
 export interface SalesPerformanceSummary {
   total_leads: number;
   active_pipeline_leads: number;
-  qualified_leads?: number;
   won_deals: number;
   lost_deals: number;
   win_rate: number;
   pipeline_product_quantity: number;
   won_product_quantity: number;
   average_products_per_won_deal: number;
+  order_booking?: number;
+  revenue?: number;
+  gross_margin?: number;
+  gross_margin_pct?: number | null;
+  weighted_pipeline?: number;
 }
 
 export interface PipelineStageRow {
@@ -38,6 +114,7 @@ export interface TopProductRow {
 }
 
 export interface TopCustomerRow {
+  lead_id?: string;
   customer: string;
   company: string;
   product_quantity: number;
@@ -109,6 +186,11 @@ export interface ProductReportMetrics {
 
 export interface SalesMBRReport {
   filters: SalesMBRFilters;
+  metric_scopes?: SalesMBRMetricScopes;
+  sales_performance?: SalesPerformancePack;
+  top_customers_by_revenue?: TopCustomerRevenueRow[];
+  forward_pipeline?: ForwardPipeline;
+  lost_deals?: LostDealRow[];
   performance_summary: SalesPerformanceSummary;
   pipeline_by_stage: PipelineStageRow[];
   category_analysis: CategoryAnalysisRow[];

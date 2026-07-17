@@ -17,6 +17,8 @@ export interface ProductCategory {
 
 export type LeadRecordType = "LEAD" | "VISIT";
 
+export type BusinessSegment = "TRADING" | "SOLUTIONS";
+
 export type FollowupStatus = "none" | "overdue" | "due_soon" | "normal";
 
 export type { GutFeelingPercent } from "@/lib/gutFeelingOptions";
@@ -78,6 +80,14 @@ export interface Lead {
   category_name: string;
   stage: string;
   stage_name: string;
+  business_segment?: BusinessSegment;
+  deal_value?: string | null;
+  billed_amount?: string | null;
+  gross_margin_amount?: string | null;
+  expected_close_date?: string | null;
+  lost_reason?: string;
+  competitor?: string;
+  recovery_action?: string;
   gut_feeling_percent?: number | null;
   is_active: boolean;
   has_pricing_response?: boolean;
@@ -135,6 +145,14 @@ export interface LeadFormData {
   category: string;
   stage: string;
   gut_feeling_percent?: number | "" | null;
+  business_segment?: BusinessSegment | "";
+  deal_value?: string;
+  billed_amount?: string;
+  gross_margin_amount?: string;
+  expected_close_date?: string;
+  lost_reason?: string;
+  competitor?: string;
+  recovery_action?: string;
   notes: string;
   assigned_to?: string;
   record_type?: LeadRecordType;

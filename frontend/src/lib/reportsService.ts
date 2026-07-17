@@ -1,4 +1,4 @@
-import { api, resolveApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import type { SalesMBRReport } from "@/types/reports";
 
 export interface SalesMBRQuery {
@@ -8,26 +8,28 @@ export interface SalesMBRQuery {
   category?: string;
 }
 
+function queryParams(query: SalesMBRQuery) {
+  return {
+    year: query.year,
+    month: query.month,
+    salesperson: query.salesperson || undefined,
+    category: query.category || undefined,
+  };
+}
+
 export async function fetchSalesMBRReport(
   query: SalesMBRQuery,
 ): Promise<SalesMBRReport> {
   const { data } = await api.get<SalesMBRReport>("/api/v1/reports/sales/", {
-    params: {
-      year: query.year,
-      month: query.month,
-      salesperson: query.salesperson || undefined,
-      category: query.category || undefined,
-    },
+    params: queryParams(query),
   });
   return data;
 }
 
-export function getSalesMBRExportUrl(query: SalesMBRQuery): string {
-  const params = new URLSearchParams({
-    year: String(query.year),
-    month: String(query.month),
+export async function downloadSalesMBRExport(query: SalesMBRQuery): Promise<Blob> {
+  const { data } = await api.get<Blob>("/api/v1/reports/sales/export/", {
+    params: queryParams(query),
+    responseType: "blob",
   });
-  if (query.salesperson) params.set("salesperson", query.salesperson);
-  if (query.category) params.set("category", query.category);
-  return `${resolveApiBaseUrl()}/api/v1/reports/sales/export/?${params.toString()}`;
+  return data;
 }

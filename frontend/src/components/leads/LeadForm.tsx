@@ -7,18 +7,15 @@ import { isAxiosError } from "axios";
 import LocationDisplay from "@/components/attendance/LocationDisplay";
 import LeadDocumentsSection from "@/components/leads/LeadDocumentsSection";
 import LeadItemsEditor from "@/components/leads/LeadItemsEditor";
-import LeadVisitToggle from "@/components/leads/LeadVisitToggle";
 import { useToast } from "@/context/ToastContext";
 import { GeolocationError, getCurrentPosition } from "@/lib/geolocation";
 import { getValidationToastMessage, parseApiFieldErrors } from "@/lib/formErrors";
 import { GUT_FEELING_PERCENT_OPTIONS } from "@/lib/gutFeelingOptions";
 import { validateIndianMobile } from "@/lib/phoneValidation";
 import {
-  getRecordTypeLabel,
   type AssignableUser,
   type LeadDocument,
   type LeadFormData,
-  type LeadRecordType,
   type LeadStage,
   type ProductCategory,
 } from "@/types/lead";
@@ -212,23 +209,8 @@ export default function LeadForm({
     }
   }
 
-  const recordType = values.record_type || "LEAD";
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5">
-        <div>
-          <p className="text-sm font-medium text-slate-700">Record type</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Choose whether you are logging a {getRecordTypeLabel(recordType).toLowerCase()}.
-          </p>
-        </div>
-        <LeadVisitToggle
-          value={recordType}
-          onChange={(next: LeadRecordType) => updateField("record_type", next)}
-        />
-      </div>
-
       {fieldErrors._form && (
         <p className="text-sm text-red-600">{fieldErrors._form}</p>
       )}
@@ -410,7 +392,7 @@ export default function LeadForm({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Gut Feeling</label>
+          <label className="mb-1 block text-sm font-medium">Gut Feeling (Win %)</label>
           <select
             className={inputClass}
             value={gutFeelingSelectValue(values.gut_feeling_percent)}
@@ -428,6 +410,71 @@ export default function LeadForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Business segment</label>
+          <select
+            className={inputClass}
+            value={values.business_segment || ""}
+            onChange={(e) =>
+              updateField(
+                "business_segment",
+                e.target.value as "" | "TRADING" | "SOLUTIONS",
+              )
+            }
+          >
+            <option value="">Auto from category</option>
+            <option value="TRADING">Trading</option>
+            <option value="SOLUTIONS">Solutions</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Expected close date</label>
+          <input
+            type="date"
+            className={inputClass}
+            value={values.expected_close_date || ""}
+            onChange={(e) => updateField("expected_close_date", e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Deal value (₹)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={inputClass}
+            value={values.deal_value || ""}
+            onChange={(e) => updateField("deal_value", e.target.value)}
+            placeholder="Order booking / opportunity value"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Billed amount (₹)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={inputClass}
+            value={values.billed_amount || ""}
+            onChange={(e) => updateField("billed_amount", e.target.value)}
+            placeholder="Revenue / billing (optional)"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">Gross margin (₹)</label>
+          <input
+            type="number"
+            step="0.01"
+            className={inputClass}
+            value={values.gross_margin_amount || ""}
+            onChange={(e) => updateField("gross_margin_amount", e.target.value)}
+          />
         </div>
 
         {canAssign && (
@@ -449,6 +496,45 @@ export default function LeadForm({
         )}
       </section>
 
+      {stages.find((s) => String(s.id) === selectIdValue(values.stage))?.name ===
+        "Lost" && (
+        <section className="grid gap-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <h3 className="text-sm font-semibold text-amber-900">Lost deal details</h3>
+            <p className="mt-0.5 text-xs text-amber-800">
+              Required for Sales MBR lost / slipped deals reporting.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Reason</label>
+            <input
+              type="text"
+              className={inputClass}
+              value={values.lost_reason || ""}
+              onChange={(e) => updateField("lost_reason", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Competitor</label>
+            <input
+              type="text"
+              className={inputClass}
+              value={values.competitor || ""}
+              onChange={(e) => updateField("competitor", e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm font-medium">Recovery action</label>
+            <textarea
+              rows={2}
+              className={inputClass}
+              value={values.recovery_action || ""}
+              onChange={(e) => updateField("recovery_action", e.target.value)}
+            />
+          </div>
+        </section>
+      )}
+
       <div>
         <label className="mb-1 block text-sm font-medium">Notes</label>
         <textarea
@@ -468,7 +554,7 @@ export default function LeadForm({
           {isSubmitting
             ? "Saving..."
             : mode === "create"
-              ? `Create ${getRecordTypeLabel(recordType)}`
+              ? "Create Lead"
               : "Save Changes"}
         </button>
         {cancelHref && (

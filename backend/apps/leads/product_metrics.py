@@ -2,7 +2,7 @@
 Product-level analytics from lead line items (quantity-based).
 """
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Sum
+from django.db.models import Sum
 
 from apps.accounts.access import leads_for_user
 from apps.leads.models import LeadItem
@@ -62,12 +62,34 @@ def get_pipeline_product_metrics(user: User) -> dict:
     }
 
 
-def get_product_report_metrics(user: User) -> dict:
-    """Product analytics for management reports (quantity-based)."""
-    active_leads = leads_for_user(user).filter(is_active=True)
-    pipeline_items = _items_for_leads(active_pipeline_leads(active_leads))
-    won_items = _items_for_leads(active_leads.filter(stage__name=WON_STAGE))
-    all_items = _items_for_leads(active_leads)
+def get_product_report_metrics(
+    user: User,
+    leads_qs=None,
+    won_lead_ids: set | None = None,
+) -> dict:
+    """
+    Product analytics for management reports (quantity-based).
+
+    When leads_qs is provided, all aggregations are scoped to that queryset
+    (assignee/category filters). Pipeline quantity breakdowns use open pipeline
+    (snapshot). Top selling products use won_lead_ids when provided (period),
+    otherwise all currently Won leads.
+    """
+    active_leads = (
+        leads_qs
+        if leads_qs is not None
+        else leads_for_user(user).filter(is_active=True)
+    )
+    pipeline_leads = active_pipeline_leads(active_leads)
+    pipeline_items = _items_for_leads(pipeline_leads)
+
+    if won_lead_ids is not None:
+        won_leads = (
+            active_leads.filter(id__in=won_lead_ids) if won_lead_ids else active_leads.none()
+        )
+    else:
+        won_leads = active_leads.filter(stage__name=WON_STAGE)
+    won_items = _items_for_leads(won_leads)
 
     def aggregate_rows(qs, limit=None):
         rows = (
@@ -91,16 +113,18 @@ def get_product_report_metrics(user: User) -> dict:
             for row in rows
         ]
 
-    quantity_by_product = aggregate_rows(all_items)
+    # Snapshot: current open pipeline product mix
+    quantity_by_product = aggregate_rows(pipeline_items)
 
     quantity_by_category = list(
-        all_items.values("category__name")
+        pipeline_items.values("category__name")
         .annotate(quantity=Sum("quantity"))
         .order_by("-quantity"),
     )
 
     quantity_by_brand = list(
-        all_items.exclude(brand__name="")
+        pipeline_items.exclude(brand__name="")
+        .exclude(brand__isnull=True)
         .values("brand__name")
         .annotate(quantity=Sum("quantity"))
         .order_by("-quantity"),
@@ -112,7 +136,7 @@ def get_product_report_metrics(user: User) -> dict:
         "quantity_by_product": quantity_by_product,
         "quantity_by_category": [
             {
-                "category": row["category__name"],
+                "category": row["category__name"] or "—",
                 "quantity": int(row["quantity"] or 0),
             }
             for row in quantity_by_category

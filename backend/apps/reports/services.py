@@ -1,15 +1,32 @@
 """
 Sales MBR (Monthly Business Review) aggregation logic.
+
+Metric contract
+---------------
+Period (selected calendar month):
+  - leads created in month
+  - deals won / lost in month
+  - won product quantity / avg products per won deal
+  - completed follow-ups
+  - pricing requests created in month
+  - salesperson won / lost / follow-ups completed
+
+Snapshot (current state, still respecting assignee/category filters):
+  - open pipeline lead count and product quantity
+  - pipeline by stage
+  - category / product mix in open pipeline
+  - top open projects
+  - today's / overdue follow-ups
+  - salesperson leads managed / pipeline qty
 """
 from datetime import datetime
-from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Sum
+from django.db.models import Count, Prefetch, Sum
 from django.utils import timezone
 
 from apps.accounts.access import leads_for_user
-from apps.accounts.choices import UserRole
+from apps.accounts.hierarchy import visible_team_members_for_user
 from apps.activities.models import ActivityType, LeadActivity
 from apps.leads.categories import PRODUCT_CATEGORIES
 from apps.leads.followup_services import (
@@ -20,8 +37,8 @@ from apps.leads.models import LeadItem, ProductCategory
 from apps.leads.product_metrics import get_product_report_metrics
 from apps.pricing.access import pricing_requests_for_user
 from apps.pricing.services import get_pricing_metrics
+from apps.reports.sales_pack import build_sales_pack_sections
 from apps.leads.stages import (
-    ACTIVE_PIPELINE_STAGES,
     ALL_STAGES_ORDER,
     LOST_STAGE,
     WON_STAGE,
@@ -29,10 +46,6 @@ from apps.leads.stages import (
 )
 
 User = get_user_model()
-
-
-def _decimal(value) -> Decimal:
-    return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
 def get_period_bounds(year: int, month: int) -> tuple[datetime, datetime]:
@@ -75,20 +88,30 @@ def _assignee_display_name(user: User) -> str:
 
 
 def filterable_salespeople(user: User):
-    """Users available in the report assignee filter dropdown."""
-    qs = User.objects.filter(is_active=True).order_by("first_name", "last_name")
-    if user.is_ceo:
-        return qs.filter(
-            role__in=[UserRole.CEO, UserRole.SALES_HEAD, UserRole.SALESPERSON],
-        )
-    if user.is_sales_head:
-        return qs.filter(role=UserRole.SALESPERSON)
-    return qs.none()
+    """Users available in the report assignee filter (visible team only)."""
+    return visible_team_members_for_user(user).order_by("first_name", "last_name")
 
 
 def filterable_categories():
     """Categories available in the report category filter."""
     return ProductCategory.objects.filter(name__in=PRODUCT_CATEGORIES).order_by("name")
+
+
+def validate_report_scope(
+    user: User,
+    salesperson_id: str | None,
+    category_id: str | None,
+) -> None:
+    """Raise ValueError if assignee/category filters are outside the user's scope."""
+    if salesperson_id:
+        allowed_ids = {
+            str(member.id) for member in filterable_salespeople(user)
+        }
+        if salesperson_id not in allowed_ids:
+            raise ValueError("Assignee is not in your team.")
+    if category_id:
+        if not filterable_categories().filter(pk=category_id).exists():
+            raise ValueError("Invalid category.")
 
 
 def _won_lost_lead_ids(
@@ -154,7 +177,7 @@ def _category_analysis(leads) -> list[dict]:
         category_leads = leads.filter(category__name=category_name)
         lead_count = category_leads.count()
         product_quantity = int(
-            LeadItem.objects.filter(lead__in=category_leads).aggregate(
+            LeadItem.objects.filter(lead__in=active_pipeline_leads(category_leads)).aggregate(
                 total=Sum("quantity"),
             )["total"]
             or 0,
@@ -210,14 +233,13 @@ def get_sales_mbr_report(
     category_id: str | None = None,
 ) -> dict:
     """Build the Sales MBR JSON payload."""
+    validate_report_scope(user, salesperson_id, category_id)
     start, end = get_period_bounds(year, month)
     leads = scoped_leads(user, salesperson_id, category_id)
 
+    # --- Period metrics ---
     period_leads = leads.filter(created_at__gte=start, created_at__lt=end)
     total_leads = period_leads.count()
-    active_pipeline_leads_count = period_leads.filter(
-        stage__name__in=ACTIVE_PIPELINE_STAGES,
-    ).count()
 
     won_ids = _won_lost_lead_ids(leads, ActivityType.LEAD_CLOSED_WON, start, end)
     lost_ids = _won_lost_lead_ids(leads, ActivityType.LEAD_CLOSED_LOST, start, end)
@@ -236,7 +258,9 @@ def get_sales_mbr_report(
         round(won_product_quantity / won_deals, 1) if won_deals else 0.0
     )
 
+    # --- Snapshot metrics ---
     open_pipeline = active_pipeline_leads(leads)
+    active_pipeline_leads_count = open_pipeline.count()
     pipeline_product_quantity = int(
         LeadItem.objects.filter(lead__in=open_pipeline).aggregate(
             total=Sum("quantity"),
@@ -246,19 +270,22 @@ def get_sales_mbr_report(
 
     pipeline_by_stage = _pipeline_with_percentages(leads)
     category_analysis = _category_analysis(leads)
-    top_products = _top_products_analysis(leads)
+    top_products = _top_products_analysis(open_pipeline)
 
     top_customers_qs = open_pipeline.order_by("-updated_at")[:10]
     top_customers = [
         {
+            "lead_id": str(lead.id),
             "customer": lead.customer_name,
             "company": lead.company_name or "—",
             "product_quantity": int(
-                lead.items.aggregate(total=Sum("quantity"))["total"] or 0,
+                sum(item.quantity for item in lead.items.all()),
             ),
             "stage": lead.stage.name,
         }
-        for lead in top_customers_qs.prefetch_related("items")
+        for lead in top_customers_qs.prefetch_related(
+            Prefetch("items", queryset=LeadItem.objects.only("lead_id", "quantity")),
+        )
     ]
 
     salesperson_rows = []
@@ -317,12 +344,30 @@ def get_sales_mbr_report(
             )
 
     follow_up_analysis = get_followup_report_metrics(user, start, end, leads)
+
     pricing_qs = pricing_requests_for_user(user).filter(
         requested_at__gte=start,
         requested_at__lt=end,
     )
+    if salesperson_id:
+        pricing_qs = pricing_qs.filter(lead__assigned_to_id=salesperson_id)
+    if category_id:
+        pricing_qs = pricing_qs.filter(lead__category_id=category_id)
     pricing_analysis = get_pricing_metrics(pricing_qs)
+
     month_name = datetime(year, month, 1).strftime("%B")
+    products = get_product_report_metrics(
+        user,
+        leads_qs=leads,
+        won_lead_ids=won_ids,
+    )
+    sales_pack = build_sales_pack_sections(
+        leads,
+        won_ids=won_ids,
+        lost_ids=lost_ids,
+        year=year,
+        month=month,
+    )
 
     return {
         "filters": {
@@ -332,16 +377,28 @@ def get_sales_mbr_report(
             "salesperson_id": salesperson_id,
             "category_id": category_id,
         },
+        "metric_scopes": {
+            "period": f"{month_name} {year}",
+            "snapshot": "Current open pipeline / live follow-ups",
+        },
+        "sales_performance": sales_pack["sales_performance"],
+        "top_customers_by_revenue": sales_pack["top_customers_by_revenue"],
+        "forward_pipeline": sales_pack["forward_pipeline"],
+        "lost_deals": sales_pack["lost_deals"],
         "performance_summary": {
             "total_leads": total_leads,
             "active_pipeline_leads": active_pipeline_leads_count,
-            "qualified_leads": active_pipeline_leads_count,
             "won_deals": won_deals,
             "lost_deals": lost_deals,
             "win_rate": win_rate,
             "pipeline_product_quantity": pipeline_product_quantity,
             "won_product_quantity": won_product_quantity,
             "average_products_per_won_deal": average_products_per_won_deal,
+            "order_booking": sales_pack["sales_performance"]["total"]["order_booking"],
+            "revenue": sales_pack["sales_performance"]["total"]["revenue"],
+            "gross_margin": sales_pack["sales_performance"]["total"]["gross_margin"],
+            "gross_margin_pct": sales_pack["sales_performance"]["total"]["gross_margin_pct"],
+            "weighted_pipeline": sales_pack["forward_pipeline"]["total_weighted_pipeline"],
         },
         "pipeline_by_stage": pipeline_by_stage,
         "category_analysis": category_analysis,
@@ -361,7 +418,7 @@ def get_sales_mbr_report(
             {"id": str(cat.id), "name": cat.name}
             for cat in filterable_categories()
         ],
-        "products": get_product_report_metrics(user),
+        "products": products,
     }
 
 

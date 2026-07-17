@@ -71,7 +71,7 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
     address: form.address.trim(),
     stage: form.stage,
     notes: form.notes.trim(),
-    record_type: form.record_type ?? "LEAD",
+    record_type: "LEAD",
     items: buildItemsPayload(form.items),
   };
 
@@ -82,6 +82,22 @@ export function toLeadApiPayload(form: LeadFormData): Record<string, unknown> {
   } else {
     payload.gut_feeling_percent = null;
   }
+  if (form.business_segment) {
+    payload.business_segment = form.business_segment;
+  }
+  payload.deal_value = form.deal_value?.trim() ? form.deal_value.trim() : null;
+  payload.billed_amount = form.billed_amount?.trim()
+    ? form.billed_amount.trim()
+    : null;
+  payload.gross_margin_amount = form.gross_margin_amount?.trim()
+    ? form.gross_margin_amount.trim()
+    : null;
+  payload.expected_close_date = form.expected_close_date?.trim()
+    ? form.expected_close_date.trim()
+    : null;
+  payload.lost_reason = form.lost_reason?.trim() || "";
+  payload.competitor = form.competitor?.trim() || "";
+  payload.recovery_action = form.recovery_action?.trim() || "";
   if (form.latitude && form.longitude) {
     payload.latitude = Number(form.latitude).toFixed(6);
     payload.longitude = Number(form.longitude).toFixed(6);

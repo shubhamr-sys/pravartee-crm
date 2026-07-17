@@ -34,6 +34,14 @@ const emptyForm: LeadFormData = {
   category: "",
   stage: "",
   gut_feeling_percent: "",
+  business_segment: "",
+  deal_value: "",
+  billed_amount: "",
+  gross_margin_amount: "",
+  expected_close_date: "",
+  lost_reason: "",
+  competitor: "",
+  recovery_action: "",
   notes: "",
   assigned_to: "",
   record_type: "LEAD",
@@ -43,7 +51,7 @@ const emptyForm: LeadFormData = {
 
 export default function NewLeadPage() {
   const router = useRouter();
-  const { isCEO, isSalesHead } = useAuth();
+  const { user, isCEO, isSalesHead } = useAuth();
   const canAssign = isCEO || isSalesHead;
 
   const [stages, setStages] = useState<LeadStage[]>([]);
@@ -67,16 +75,22 @@ export default function NewLeadPage() {
         const defaultStage =
           stageData.find((item) => item.name === "New")?.id || stageData[0]?.id || "";
 
-        setInitialValues((current) => ({
-          ...current,
-          stage: defaultStage,
-          items: [emptyLeadItem()],
-        }));
-
+        let defaultAssignee = "";
         if (canAssign) {
           const users = await fetchAssignableUsers();
           setAssignableUsers(users);
+          // Sales Head: default assignment to self unless they pick a salesperson.
+          if (isSalesHead && user?.id) {
+            defaultAssignee = user.id;
+          }
         }
+
+        setInitialValues((current) => ({
+          ...current,
+          stage: defaultStage,
+          assigned_to: defaultAssignee,
+          items: [emptyLeadItem()],
+        }));
       } catch {
         setLoadError("Unable to load form options.");
       } finally {
@@ -85,7 +99,7 @@ export default function NewLeadPage() {
     }
 
     load();
-  }, [canAssign]);
+  }, [canAssign, isSalesHead, user?.id]);
 
   async function handleSubmit(values: LeadFormData) {
     setIsSubmitting(true);

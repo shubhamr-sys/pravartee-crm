@@ -98,7 +98,8 @@ class LeadListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         user = self.request.user
         assigned_to = serializer.validated_data.get("assigned_to")
-        if user.is_salesperson and assigned_to is None:
+        # Salesperson / Sales Head: default assignee to creator when none selected.
+        if assigned_to is None and (user.is_salesperson or user.is_sales_head):
             serializer.save(assigned_to=user)
         else:
             serializer.save()

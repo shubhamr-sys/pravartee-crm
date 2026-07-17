@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { formFieldClassLg, formLabelClass } from "@/lib/formStyles";
-import { getAccessToken } from "@/lib/auth";
 import {
+  downloadSalesMBRExport,
   fetchSalesMBRReport,
-  getSalesMBRExportUrl,
   type SalesMBRQuery,
 } from "@/lib/reportsService";
-import type { SalesMBRReport } from "@/types/reports";
+import type { SalesMBRReport, SalesSegmentPerformance } from "@/types/reports";
 
 const MONTHS = [
   { value: 1, label: "January" },
@@ -32,6 +32,20 @@ function currentYear() {
 
 function currentMonth() {
   return new Date().getMonth() + 1;
+}
+
+function formatInr(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatPct(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value}%`;
 }
 
 function ProductTable({
@@ -82,6 +96,68 @@ function ProductTable({
   );
 }
 
+function SectionHint({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs text-slate-500">{children}</p>;
+}
+
+function performanceMetricRows(perf: {
+  trading: SalesSegmentPerformance;
+  solutions: SalesSegmentPerformance;
+  total: SalesSegmentPerformance;
+}) {
+  const { trading: t, solutions: s, total } = perf;
+  return [
+    [
+      "Order Booking",
+      formatInr(t.order_booking),
+      formatInr(s.order_booking),
+      formatInr(total.order_booking),
+      formatInr(total.order_booking_target),
+      formatPct(total.order_booking_var_pct),
+    ],
+    [
+      "Revenue / Billing",
+      formatInr(t.revenue),
+      formatInr(s.revenue),
+      formatInr(total.revenue),
+      formatInr(total.revenue_target),
+      formatPct(total.revenue_var_pct),
+    ],
+    [
+      "Gross Margin (₹)",
+      formatInr(t.gross_margin),
+      formatInr(s.gross_margin),
+      formatInr(total.gross_margin),
+      formatInr(total.gross_margin_target),
+      formatPct(total.gross_margin_var_pct),
+    ],
+    [
+      "Gross Margin %",
+      formatPct(t.gross_margin_pct),
+      formatPct(s.gross_margin_pct),
+      formatPct(total.gross_margin_pct),
+      "—",
+      "—",
+    ],
+    [
+      "No. of Deals Won",
+      t.deals_won,
+      s.deals_won,
+      total.deals_won,
+      total.deals_won_target,
+      "—",
+    ],
+    [
+      "Avg Deal Size (₹)",
+      formatInr(t.avg_deal_size),
+      formatInr(s.avg_deal_size),
+      formatInr(total.avg_deal_size),
+      "—",
+      "—",
+    ],
+  ];
+}
+
 export default function SalesMBRPage() {
   const [year, setYear] = useState(currentYear);
   const [month, setMonth] = useState(currentMonth);
@@ -90,7 +166,9 @@ export default function SalesMBRPage() {
   const [report, setReport] = useState<SalesMBRReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   const query = useMemo<SalesMBRQuery>(
     () => ({
@@ -103,16 +181,22 @@ export default function SalesMBRPage() {
   );
 
   const loadReport = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
+    if (hasLoadedRef.current) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const data = await fetchSalesMBRReport(query);
       setReport(data);
+      hasLoadedRef.current = true;
     } catch {
       setError("Unable to load Sales MBR report.");
-      setReport(null);
+      if (!hasLoadedRef.current) setReport(null);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, [query]);
 
@@ -122,15 +206,9 @@ export default function SalesMBRPage() {
 
   async function handleExport() {
     setIsExporting(true);
+    setError(null);
     try {
-      const token = getAccessToken();
-      const response = await fetch(getSalesMBRExportUrl(query), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
-      const blob = await response.blob();
+      const blob = await downloadSalesMBRExport(query);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -146,7 +224,10 @@ export default function SalesMBRPage() {
   }
 
   const summary = report?.performance_summary;
-  const products = report?.products;
+  const perf = report?.sales_performance;
+  const pipeline = report?.forward_pipeline;
+  const periodLabel =
+    report?.metric_scopes?.period ?? `${MONTHS[month - 1]?.label} ${year}`;
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear() - i);
 
   return (
@@ -160,7 +241,8 @@ export default function SalesMBRPage() {
             Sales MBR Dashboard
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Monthly Business Review — sales performance and pipeline insights.
+            Aligned to Sales Reporting Pack — booking, billing, margin, pipeline, and
+            lost deals for {periodLabel}.
           </p>
         </div>
         <button
@@ -246,6 +328,9 @@ export default function SalesMBRPage() {
             </select>
           </div>
         </div>
+        {isRefreshing ? (
+          <p className="mt-3 text-xs font-medium text-teal-700">Updating report…</p>
+        ) : null}
       </div>
 
       {error && (
@@ -254,253 +339,120 @@ export default function SalesMBRPage() {
         </div>
       )}
 
-      {isLoading && (
+      {isLoading && !report && (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
           Loading report...
         </div>
       )}
 
-      {!isLoading && report && summary && (
-        <>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Sales Performance Summary
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { label: "Total Leads", value: summary.total_leads },
-                {
-                  label: "Active Pipeline Leads",
-                  value: summary.active_pipeline_leads,
-                },
-                { label: "Won Deals", value: summary.won_deals },
-                { label: "Lost Deals", value: summary.lost_deals },
-                { label: "Win Rate", value: `${summary.win_rate}%` },
-                {
-                  label: "Pipeline Product Quantity",
-                  value: summary.pipeline_product_quantity,
-                },
-                {
-                  label: "Won Product Quantity",
-                  value: summary.won_product_quantity,
-                },
-                {
-                  label: "Avg Products per Won Deal",
-                  value: summary.average_products_per_won_deal,
-                },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <p className="text-sm text-slate-500">{card.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">
-                    {card.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+      {report && summary && (
+        <div className={isRefreshing ? "opacity-70 transition-opacity" : undefined}>
+          {perf ? (
+            <section className="space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  1. Sales Performance Summary (₹)
+                </h2>
+                <SectionHint>
+                  Won deals in {periodLabel}. Set deal value / billed / margin on leads;
+                  targets via Django admin (Sales monthly targets).
+                </SectionHint>
+              </div>
+              <ProductTable
+                headers={[
+                  "Metric",
+                  "Trading",
+                  "Solutions",
+                  "Total (Month)",
+                  "Target (Month)",
+                  "Var %",
+                ]}
+                rows={performanceMetricRows(perf)}
+                emptyMessage="No won-deal commercial data for this period."
+              />
+            </section>
+          ) : null}
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Sales Pipeline</h2>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Stage</th>
-                    <th className="px-4 py-3 font-medium">Count</th>
-                    <th className="px-4 py-3 font-medium">Percentage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.pipeline_by_stage.map((row) => (
-                    <tr key={row.stage} className="border-b border-slate-100">
-                      <td className="px-4 py-3">{row.stage}</td>
-                      <td className="px-4 py-3">{row.count}</td>
-                      <td className="px-4 py-3">{row.percentage ?? 0}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <section className="mt-6 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                2. Top Customers (by Revenue)
+              </h2>
+              <SectionHint>Won deals in {periodLabel}, ranked by billed amount.</SectionHint>
             </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Category Analysis</h2>
             <ProductTable
-              headers={["Category", "Lead Count", "Product Quantity", "Pipeline Share"]}
-              rows={(report.category_analysis ?? []).map((row) => [
-                row.category,
-                row.lead_count,
-                row.product_quantity,
-                `${row.pipeline_share_percentage}%`,
+              headers={[
+                "Customer",
+                "Segment",
+                "Revenue (₹)",
+                "Gross Margin (₹)",
+                "GM %",
+                "Collection",
+              ]}
+              rows={(report.top_customers_by_revenue ?? []).map((row) => [
+                row.customer,
+                row.segment_display,
+                formatInr(row.revenue),
+                formatInr(row.gross_margin),
+                formatPct(row.gross_margin_pct),
+                row.collection_status,
               ])}
-              emptyMessage="No category data."
+              emptyMessage="No won deals with revenue in this period."
             />
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Product Analysis</h2>
-            <ProductTable
-              headers={["Product", "Quantity", "Lead Count"]}
-              rows={(report.top_products ?? []).map((row) => [
-                row.product,
-                row.quantity,
-                row.lead_count,
-              ])}
-              emptyMessage="No product data."
-            />
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Top Projects
-            </h2>
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Project</th>
-                    <th className="px-4 py-3 font-medium">Company</th>
-                    <th className="px-4 py-3 font-medium">Product Qty</th>
-                    <th className="px-4 py-3 font-medium">Stage</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.top_customers.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-4 py-6 text-center text-slate-500"
-                      >
-                        No projects in the current pipeline.
-                      </td>
-                    </tr>
-                  ) : (
-                    report.top_customers.map((row) => (
-                      <tr
-                        key={`${row.customer}-${row.company}`}
-                        className="border-b border-slate-100"
-                      >
-                        <td className="px-4 py-3">{row.customer}</td>
-                        <td className="px-4 py-3">{row.company}</td>
-                        <td className="px-4 py-3">{row.product_quantity}</td>
-                        <td className="px-4 py-3">{row.stage}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          <section className="mt-6 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                3. Sales Pipeline (forward-looking)
+              </h2>
+              <SectionHint>
+                Open pipeline snapshot. Weighted = deal value × gut feeling %. Total
+                value {formatInr(pipeline?.total_pipeline_value)} · Weighted{" "}
+                {formatInr(pipeline?.total_weighted_pipeline)}.
+              </SectionHint>
             </div>
-          </section>
-
-          {products && (
-            <>
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Quantity by Product
-                </h2>
-                <ProductTable
-                  headers={["Product", "Category", "Brand", "Quantity"]}
-                  rows={(products.quantity_by_product ?? []).map((row) => [
-                    row.product,
-                    row.category || "—",
-                    row.brand || "—",
-                    row.quantity,
-                  ])}
-                  emptyMessage="No product quantity data."
-                />
-              </section>
-
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Quantity by Category
-                </h2>
-                <ProductTable
-                  headers={["Category", "Quantity"]}
-                  rows={(products.quantity_by_category ?? []).map((row) => [
-                    row.category,
-                    row.quantity,
-                  ])}
-                  emptyMessage="No category quantity data."
-                />
-              </section>
-
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Quantity by Brand
-                </h2>
-                <ProductTable
-                  headers={["Brand", "Quantity"]}
-                  rows={(products.quantity_by_brand ?? []).map((row) => [
-                    row.brand,
-                    row.quantity,
-                  ])}
-                  emptyMessage="No brand quantity data."
-                />
-              </section>
-
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Top Selling Products
-                </h2>
-                <ProductTable
-                  headers={["Product", "Brand", "Quantity"]}
-                  rows={(products.top_selling_products ?? []).map((row) => [
-                    row.product,
-                    row.brand || "—",
-                    row.quantity,
-                  ])}
-                  emptyMessage="No won deals with products yet."
-                />
-              </section>
-            </>
-          )}
-
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Salesperson Performance
-            </h2>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                   <tr>
-                    <th className="px-4 py-3 font-medium">User</th>
-                    <th className="px-4 py-3 font-medium">Leads Managed</th>
-                    <th className="px-4 py-3 font-medium">Won Deals</th>
-                    <th className="px-4 py-3 font-medium">Lost Deals</th>
-                    <th className="px-4 py-3 font-medium">Pipeline Qty</th>
-                    <th className="px-4 py-3 font-medium">Win Rate</th>
-                    <th className="px-4 py-3 font-medium">Follow-ups Done</th>
+                    <th className="px-4 py-3 font-medium">Opportunity</th>
+                    <th className="px-4 py-3 font-medium">Segment</th>
+                    <th className="px-4 py-3 font-medium">Stage</th>
+                    <th className="px-4 py-3 font-medium">Value (₹)</th>
+                    <th className="px-4 py-3 font-medium">Win %</th>
+                    <th className="px-4 py-3 font-medium">Weighted (₹)</th>
+                    <th className="px-4 py-3 font-medium">Exp. Close</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {report.salesperson_performance.length === 0 ? (
+                  {(pipeline?.opportunities ?? []).length === 0 ? (
                     <tr>
                       <td
                         colSpan={7}
                         className="px-4 py-6 text-center text-slate-500"
                       >
-                        No salesperson data for this period.
+                        No open pipeline opportunities.
                       </td>
                     </tr>
                   ) : (
-                    report.salesperson_performance.map((row) => (
-                      <tr key={row.user_id} className="border-b border-slate-100">
-                        <td className="px-4 py-3">{row.user}</td>
-                        <td className="px-4 py-3">{row.leads_managed}</td>
-                        <td className="px-4 py-3">{row.won_deals}</td>
-                        <td className="px-4 py-3">{row.lost_deals}</td>
+                    (pipeline?.opportunities ?? []).map((row) => (
+                      <tr key={row.lead_id} className="border-b border-slate-100">
                         <td className="px-4 py-3">
-                          {row.pipeline_product_quantity}
+                          <Link
+                            href={`/leads/${row.lead_id}`}
+                            className="font-medium text-teal-700 hover:text-teal-800"
+                          >
+                            {row.customer}
+                          </Link>
+                          <p className="text-xs text-slate-500">{row.company}</p>
                         </td>
-                        <td className="px-4 py-3">
-                          {row.win_rate ?? row.conversion_rate}%
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.followups_completed ?? 0}
-                        </td>
+                        <td className="px-4 py-3">{row.segment_display}</td>
+                        <td className="px-4 py-3">{row.stage}</td>
+                        <td className="px-4 py-3">{formatInr(row.value)}</td>
+                        <td className="px-4 py-3">{row.win_probability || "—"}</td>
+                        <td className="px-4 py-3">{formatInr(row.weighted_value)}</td>
+                        <td className="px-4 py-3">{row.expected_close_month}</td>
                       </tr>
                     ))
                   )}
@@ -509,26 +461,45 @@ export default function SalesMBRPage() {
             </div>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Pricing Requests</h2>
+          <section className="mt-6 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                4. Lost / Slipped Deals
+              </h2>
+              <SectionHint>Deals closed lost in {periodLabel}.</SectionHint>
+            </div>
+            <ProductTable
+              headers={[
+                "Customer",
+                "Value (₹)",
+                "Stage Lost",
+                "Reason",
+                "Competitor",
+                "Recovery Action",
+              ]}
+              rows={(report.lost_deals ?? []).map((row) => [
+                row.customer,
+                formatInr(row.value),
+                row.stage_lost,
+                row.reason,
+                row.competitor,
+                row.recovery_action,
+              ])}
+              emptyMessage="No lost deals in this period."
+            />
+          </section>
+
+          <section className="mt-6 space-y-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Ops snapshot</h2>
+              <SectionHint>Lead funnel metrics retained from CRM operations.</SectionHint>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                {
-                  label: "Total Requests",
-                  value: report.pricing_analysis?.total_pricing_requests ?? 0,
-                },
-                {
-                  label: "Pending",
-                  value: report.pricing_analysis?.pending_pricing_requests ?? 0,
-                },
-                {
-                  label: "Responded",
-                  value: report.pricing_analysis?.responded_pricing_requests ?? 0,
-                },
-                {
-                  label: "Avg Response (hrs)",
-                  value: report.pricing_analysis?.average_response_time_hours ?? "—",
-                },
+                { label: "Leads created (period)", value: summary.total_leads },
+                { label: "Open pipeline leads", value: summary.active_pipeline_leads },
+                { label: "Won / Lost", value: `${summary.won_deals} / ${summary.lost_deals}` },
+                { label: "Win rate", value: `${summary.win_rate}%` },
               ].map((card) => (
                 <div
                   key={card.label}
@@ -543,36 +514,33 @@ export default function SalesMBRPage() {
             </div>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Follow-up Analysis</h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {[
-                {
-                  label: "Today's Follow-ups",
-                  value: report.follow_up_analysis?.today_followups ?? 0,
-                },
-                {
-                  label: "Overdue Follow-ups",
-                  value: report.follow_up_analysis?.overdue_followups ?? 0,
-                },
-                {
-                  label: "Completed Follow-ups",
-                  value: report.follow_up_analysis?.completed_followups ?? 0,
-                },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <p className="text-sm text-slate-500">{card.label}</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">
-                    {card.value}
-                  </p>
-                </div>
-              ))}
-            </div>
+          <section className="mt-6 space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Salesperson Performance
+            </h2>
+            <ProductTable
+              headers={[
+                "User",
+                "Leads Managed",
+                "Won",
+                "Lost",
+                "Pipeline Qty",
+                "Win Rate",
+                "Follow-ups Done",
+              ]}
+              rows={report.salesperson_performance.map((row) => [
+                row.user,
+                row.leads_managed,
+                row.won_deals,
+                row.lost_deals,
+                row.pipeline_product_quantity,
+                `${row.win_rate ?? row.conversion_rate}%`,
+                row.followups_completed ?? 0,
+              ])}
+              emptyMessage="No salesperson data for this filter."
+            />
           </section>
-        </>
+        </div>
       )}
     </div>
   );

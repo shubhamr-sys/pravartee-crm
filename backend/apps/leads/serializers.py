@@ -9,7 +9,18 @@ from apps.activities.services import log_lead_created, log_lead_updated
 
 from .assignment import user_can_assign_lead_to
 from .lead_item_services import replace_lead_items, sync_lead_from_items
-from .models import Brand, Lead, LeadDocument, LeadItem, LeadStage, Product, ProductCategory, ProductModel
+from .models import (
+    Brand,
+    BusinessSegment,
+    Lead,
+    LeadDocument,
+    LeadItem,
+    LeadStage,
+    Product,
+    ProductCategory,
+    ProductModel,
+    SOLUTION_CATEGORY_NAME,
+)
 
 DUE_SOON_DAYS = 3
 GUT_FEELING_VALUES = list(range(10, 101, 10))
@@ -178,6 +189,14 @@ class LeadSerializer(serializers.ModelSerializer):
             "category_name",
             "stage",
             "stage_name",
+            "business_segment",
+            "deal_value",
+            "billed_amount",
+            "gross_margin_amount",
+            "expected_close_date",
+            "lost_reason",
+            "competitor",
+            "recovery_action",
             "gut_feeling_percent",
             "is_active",
             "has_pricing_response",
@@ -188,6 +207,19 @@ class LeadSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def _apply_business_segment(self, validated_data, instance=None):
+        """Default segment from category when not explicitly provided."""
+        if "business_segment" in validated_data and validated_data["business_segment"]:
+            return
+        category = validated_data.get("category")
+        if category is None and instance is not None:
+            category = instance.category
+        if category is not None and getattr(category, "name", None) == SOLUTION_CATEGORY_NAME:
+            validated_data["business_segment"] = BusinessSegment.SOLUTIONS
+        elif "business_segment" not in validated_data:
+            if instance is None:
+                validated_data["business_segment"] = BusinessSegment.TRADING
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:
@@ -322,6 +354,7 @@ class LeadSerializer(serializers.ModelSerializer):
             if first_category:
                 validated_data["category"] = first_category
 
+        self._apply_business_segment(validated_data)
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
         lead = super().create(validated_data)
@@ -331,11 +364,17 @@ class LeadSerializer(serializers.ModelSerializer):
         else:
             sync_lead_from_items(lead)
 
+        resolved = lead.resolve_business_segment()
+        if lead.business_segment != resolved:
+            lead.business_segment = resolved
+            lead.save(update_fields=["business_segment", "updated_at"])
+
         log_lead_created(lead, user)
         return lead
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop("items", None)
+        self._apply_business_segment(validated_data, instance=instance)
 
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
@@ -346,6 +385,12 @@ class LeadSerializer(serializers.ModelSerializer):
             replace_lead_items(lead, items_data)
         elif lead.items.exists():
             sync_lead_from_items(lead)
+
+        if "business_segment" not in self.initial_data:
+            resolved = lead.resolve_business_segment()
+            if lead.business_segment != resolved:
+                lead.business_segment = resolved
+                lead.save(update_fields=["business_segment", "updated_at"])
 
         log_lead_updated(lead, user, previous)
         return lead

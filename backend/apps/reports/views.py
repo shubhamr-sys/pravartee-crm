@@ -16,16 +16,16 @@ class SalesMBRReportView(APIView):
     def get(self, request):
         try:
             year, month, salesperson_id, category_id = parse_report_filters(request)
+            report = get_sales_mbr_report(
+                user=request.user,
+                year=year,
+                month=month,
+                salesperson_id=salesperson_id,
+                category_id=category_id,
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        report = get_sales_mbr_report(
-            user=request.user,
-            year=year,
-            month=month,
-            salesperson_id=salesperson_id,
-            category_id=category_id,
-        )
         return Response(report)
 
 
@@ -37,16 +37,16 @@ class SalesMBRExportView(APIView):
     def get(self, request):
         try:
             year, month, salesperson_id, category_id = parse_report_filters(request)
+            report = get_sales_mbr_report(
+                user=request.user,
+                year=year,
+                month=month,
+                salesperson_id=salesperson_id,
+                category_id=category_id,
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        report = get_sales_mbr_report(
-            user=request.user,
-            year=year,
-            month=month,
-            salesperson_id=salesperson_id,
-            category_id=category_id,
-        )
         workbook = build_sales_mbr_workbook(report)
         month_name = report["filters"]["month_name"]
         filename = f"Sales_MBR_{month_name}_{year}.xlsx"
