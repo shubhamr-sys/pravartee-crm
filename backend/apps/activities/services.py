@@ -234,3 +234,60 @@ def log_followup_completed(followup, user: User | None) -> LeadActivity:
             f"{f' Remarks: {followup.remarks}' if followup.remarks else ''}"
         ),
     )
+
+
+def _expense_amount_label(expense) -> str:
+    return f"₹{expense.amount}"
+
+
+def log_expense_submitted(expense, user: User | None) -> LeadActivity | None:
+    if not expense.lead_id:
+        return None
+    notes = f" {expense.description}" if (expense.description or "").strip() else ""
+    return log_lead_activity(
+        expense.lead,
+        user,
+        ActivityType.EXPENSE_SUBMITTED,
+        new_value=_expense_amount_label(expense),
+        comments=(
+            f"Expense submitted: {expense.get_category_display()} — "
+            f"{_expense_amount_label(expense)} on {expense.expense_date}."
+            f"{notes}"
+        ),
+    )
+
+
+def log_expense_approved(expense, user: User | None) -> LeadActivity | None:
+    if not expense.lead_id:
+        return None
+    notes = f" Notes: {expense.review_notes}" if (expense.review_notes or "").strip() else ""
+    return log_lead_activity(
+        expense.lead,
+        user,
+        ActivityType.EXPENSE_APPROVED,
+        old_value="Pending",
+        new_value="Approved",
+        comments=(
+            f"Expense approved: {expense.get_category_display()} — "
+            f"{_expense_amount_label(expense)}."
+            f"{notes}"
+        ),
+    )
+
+
+def log_expense_rejected(expense, user: User | None) -> LeadActivity | None:
+    if not expense.lead_id:
+        return None
+    notes = f" Notes: {expense.review_notes}" if (expense.review_notes or "").strip() else ""
+    return log_lead_activity(
+        expense.lead,
+        user,
+        ActivityType.EXPENSE_REJECTED,
+        old_value="Pending",
+        new_value="Rejected",
+        comments=(
+            f"Expense rejected: {expense.get_category_display()} — "
+            f"{_expense_amount_label(expense)}."
+            f"{notes}"
+        ),
+    )

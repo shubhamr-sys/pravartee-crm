@@ -34,6 +34,7 @@ interface AuthContextValue {
   isSalesHead: boolean;
   isSalesperson: boolean;
   isCommercial: boolean;
+  isAccounts: boolean;
   canCreateMaster: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -133,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSalesHead: user?.role === "SALES_HEAD",
       isSalesperson: user?.role === "SALESPERSON",
       isCommercial: user?.role === "COMMERCIAL",
+      isAccounts: user?.role === "ACCOUNTS",
       canCreateMaster:
         user?.role === "CEO" ||
         user?.role === "SALES_HEAD" ||

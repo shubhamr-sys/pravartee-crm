@@ -27,6 +27,51 @@ class IsCEO(permissions.BasePermission):
         )
 
 
+class IsAccounts(permissions.BasePermission):
+    """Allow only Accounts (finance) role."""
+
+    message = "This action requires Accounts privileges."
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, "is_accounts", False),
+        )
+
+
+class IsCEOOrAccounts(permissions.BasePermission):
+    """Allow CEO or Accounts roles."""
+
+    message = "This action requires CEO or Accounts privileges."
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                request.user.is_ceo
+                or getattr(request.user, "is_accounts", False)
+            ),
+        )
+
+
+class IsExpenseManager(permissions.BasePermission):
+    """CEO, Sales Head, or Accounts — can filter expenses by employee."""
+
+    message = "This action requires expense manager privileges."
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                user_sees_all_leads(request.user)
+                or getattr(request.user, "is_accounts", False)
+            ),
+        )
+
+
 class IsCommercial(permissions.BasePermission):
     """Allow only Commercial (pricing team) role."""
 

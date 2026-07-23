@@ -108,6 +108,10 @@ class User(TimeStampedModel, AbstractUser):
     def is_commercial(self):
         return self.role == UserRole.COMMERCIAL
 
+    @property
+    def is_accounts(self):
+        return self.role == UserRole.ACCOUNTS
+
     def has_crm_role(self, *roles: str) -> bool:
         """Return True if the user's role is in the given role codes."""
         return self.role in roles

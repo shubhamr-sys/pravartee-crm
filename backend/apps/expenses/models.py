@@ -35,8 +35,8 @@ class Expense(TimeStampedModel):
     description = models.TextField(blank=True)
     receipt = models.FileField(
         upload_to=expense_receipt_upload_path,
-        blank=True,
         max_length=500,
+        help_text="Receipt file is required for new expense submissions.",
     )
     status = models.CharField(
         max_length=20,

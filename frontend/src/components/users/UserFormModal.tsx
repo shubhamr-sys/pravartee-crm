@@ -14,6 +14,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "SALES_HEAD", label: "Sales Head" },
   { value: "SALESPERSON", label: "Salesperson" },
   { value: "COMMERCIAL", label: "Commercial (Pricing)" },
+  { value: "ACCOUNTS", label: "Accounts (Expenses)" },
 ];
 
 interface UserFormModalProps {
@@ -72,7 +73,7 @@ export default function UserFormModal({
   }, [isOpen, initial]);
 
   useEffect(() => {
-    if (values.role === "CEO" || values.role === "COMMERCIAL") {
+    if (values.role === "CEO" || values.role === "COMMERCIAL" || values.role === "ACCOUNTS") {
       setValues((current) => ({ ...current, manager: "" }));
     }
   }, [values.role]);

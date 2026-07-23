@@ -23,6 +23,9 @@ class ActivityType(models.TextChoices):
     VENDOR_QUOTE_UPLOADED = "VENDOR_QUOTE_UPLOADED", "Vendor Quote Uploaded"
     QUOTATION_GENERATED = "QUOTATION_GENERATED", "Quotation Generated"
     GUT_FEELING_UPDATED = "GUT_FEELING_UPDATED", "Gut Feeling Updated"
+    EXPENSE_SUBMITTED = "EXPENSE_SUBMITTED", "Expense Submitted"
+    EXPENSE_APPROVED = "EXPENSE_APPROVED", "Expense Approved"
+    EXPENSE_REJECTED = "EXPENSE_REJECTED", "Expense Rejected"
 
 
 class LeadActivity(UUIDModel):

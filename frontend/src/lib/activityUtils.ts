@@ -16,6 +16,9 @@ const ACTIVITY_ICONS: Record<string, string> = {
   VENDOR_QUOTE_UPLOADED: "📎",
   QUOTATION_GENERATED: "📄",
   GUT_FEELING_UPDATED: "🎯",
+  EXPENSE_SUBMITTED: "🧾",
+  EXPENSE_APPROVED: "✅",
+  EXPENSE_REJECTED: "🚫",
 };
 
 export function getActivityIcon(

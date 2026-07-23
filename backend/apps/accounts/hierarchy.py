@@ -26,9 +26,9 @@ def visible_team_members_for_user(user: User) -> QuerySet[User]:
 
 def validate_manager_for_role(role: str, manager: User | None) -> None:
     """Raise ValueError if manager is invalid for the given role."""
-    if role in (UserRole.CEO, UserRole.COMMERCIAL):
+    if role in (UserRole.CEO, UserRole.COMMERCIAL, UserRole.ACCOUNTS):
         if manager is not None:
-            raise ValueError("CEO and Commercial users cannot have a manager.")
+            raise ValueError("CEO, Commercial, and Accounts users cannot have a manager.")
         return
 
     if role == UserRole.SALES_HEAD:

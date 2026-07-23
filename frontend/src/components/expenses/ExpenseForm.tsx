@@ -3,7 +3,11 @@
 import { useState } from "react";
 
 import { formFieldClass, formLabelClass } from "@/lib/formStyles";
-import { EXPENSE_CATEGORY_OPTIONS, type ExpenseFormData } from "@/types/expense";
+import {
+  EXPENSE_CATEGORY_OPTIONS,
+  type ExpenseCategory,
+  type ExpenseFormData,
+} from "@/types/expense";
 import type { Lead } from "@/types/lead";
 
 interface ExpenseFormProps {
@@ -21,9 +25,9 @@ function getLocalToday(): string {
 }
 
 const EMPTY_FORM: ExpenseFormData = {
-  category: "TRAVEL",
+  category: "",
   amount: "",
-  expense_date: getLocalToday(),
+  expense_date: "",
   description: "",
   lead: "",
   receipt: null,
@@ -37,14 +41,26 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
     event.preventDefault();
     setError(null);
 
+    if (!values.category) {
+      setError("Category is required.");
+      return;
+    }
     if (!values.amount.trim() || Number(values.amount) <= 0) {
-      setError("Enter a valid amount greater than zero.");
+      setError("Amount is required and must be greater than zero.");
+      return;
+    }
+    if (!values.expense_date) {
+      setError("Expense date is required.");
+      return;
+    }
+    if (!values.receipt) {
+      setError("Receipt is required.");
       return;
     }
 
     try {
       await onSubmit(values);
-      setValues({ ...EMPTY_FORM, expense_date: getLocalToday() });
+      setValues(EMPTY_FORM);
     } catch {
       setError("Unable to submit expense. Check the details and try again.");
     }
@@ -65,7 +81,7 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label htmlFor="expense-form-category" className={formLabelClass}>
-            Category
+            Category <span className="text-rose-600">*</span>
           </label>
           <select
             id="expense-form-category"
@@ -73,11 +89,13 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
             onChange={(e) =>
               setValues((current) => ({
                 ...current,
-                category: e.target.value as ExpenseFormData["category"],
+                category: e.target.value as ExpenseCategory | "",
               }))
             }
             className={formFieldClass}
+            required
           >
+            <option value="">Select category</option>
             {EXPENSE_CATEGORY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -88,12 +106,12 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
 
         <div>
           <label htmlFor="expense-form-amount" className={formLabelClass}>
-            Amount (INR)
+            Amount (INR) <span className="text-rose-600">*</span>
           </label>
           <input
             id="expense-form-amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
             value={values.amount}
             onChange={(e) => setValues((current) => ({ ...current, amount: e.target.value }))}
@@ -104,7 +122,7 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
 
         <div>
           <label htmlFor="expense-form-date" className={formLabelClass}>
-            Expense date
+            Expense date <span className="text-rose-600">*</span>
           </label>
           <input
             id="expense-form-date"
@@ -156,12 +174,13 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
 
         <div className="md:col-span-2">
           <label htmlFor="expense-form-receipt" className={formLabelClass}>
-            Receipt (optional)
+            Receipt <span className="text-rose-600">*</span>
           </label>
           <input
             id="expense-form-receipt"
             type="file"
             accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            required
             onChange={(e) =>
               setValues((current) => ({
                 ...current,
@@ -170,6 +189,9 @@ export default function ExpenseForm({ leads, isSubmitting, onSubmit }: ExpenseFo
             }
             className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-teal-700"
           />
+          <p className="mt-1 text-xs text-slate-500">
+            PDF, image, or Word file up to 5 MB.
+          </p>
         </div>
       </div>
 

@@ -8,3 +8,4 @@ class UserRole(models.TextChoices):
     SALES_HEAD = "SALES_HEAD", "Sales Head"
     SALESPERSON = "SALESPERSON", "Salesperson"
     COMMERCIAL = "COMMERCIAL", "Commercial"
+    ACCOUNTS = "ACCOUNTS", "Accounts"
